@@ -32,7 +32,6 @@ class SEG {
 private:
 	const Function *Fn;
 	bool IsDeclaration;
-	const LoopInfo *LI;
 
 	SEGNode *EntryNode;	
 	/// List of SEGNode in function
@@ -43,7 +42,7 @@ private:
 	void applyTransformation();
 
 public:
-	SEG(const Function *fn, const LoopInfo *li);
+	SEG(const Function *fn);
 	~SEG();
 
 	/// getFunction - Return LLVM Function this SEG represents for.

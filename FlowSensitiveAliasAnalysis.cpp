@@ -37,16 +37,16 @@ namespace {
 
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
 private:
+	typedef std::vector<SEGNode*> StmtList;
 	std::map<Function*, SEG*> Func2SEG;
 	std::map<const Value*, unsigned> Value2Int;
 	std::vector<Function*> FuncWorkList;
-
+	std::map<Function*, StmtList*> StmtWorkList;
+ 
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
 		AU.addRequired<TargetLibraryInfo>();
 		AU.addRequired<CallGraph>();	
-		//FIXME Don't need LoopInfo
-		AU.addRequired<LoopInfo>();
 	}
 
 	/// constructSEG - construct sparse evaluation graph for each function
@@ -59,7 +59,11 @@ private:
 
 	/// initializeFuncWorkList - insert all functions(including declaration) into
 	/// FuncWorkList.
+	/// Meanwhile call initializeStmtWorkList for each function.
 	void initializeFuncWorkList(Module &M);
+
+	/// initializeStmtWorkList - insert all SEGNode(statements) into StmtList
+	void initializeStmtWorkList(Function *F);
 
 	/// printValueMap - print out debug information of value mapping.
 	void printValueMap();
@@ -127,15 +131,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi){
                 Function * f = &*mi;
-               	//FIXME: Don't need LoopInfo to initialize SEG
-		//Because SCCIterator is used to detect SCC, LoopInfo not
-		//used in SEG construction in the latest version.
-		//Delete LI attribute in SEGNode, modify construct function.
-		if(f->isDeclaration())
-                        continue;
-		f->dump();
-                LoopInfo *LI = &getAnalysis<LoopInfo>(*f);
-		SEG *seg = new SEG(f, LI);
+       		SEG *seg = new SEG(f);
 		seg->dump();
 		Func2SEG.insert( std::pair<Function*, SEG*>(f, seg) );
         }
@@ -183,7 +179,20 @@ void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi){
                 Function * f = &*mi;
 		FuncWorkList.push_back(f);
+		initializeStmtWorkList(f);
 	}
+}
+
+void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
+	F->dump();
+	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
+	SEG *seg = Func2SEG.find(F)->second;
+	StmtList *stmtList = new StmtList;
+	for(SEG::iterator si=seg->begin(), se=seg->end(); si!=se; ++si){
+		SEGNode *sn = &*si;
+		stmtList->push_back(sn);
+	}
+	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
 }
 
 void FlowSensitiveAliasAnalysis::printValueMap(){

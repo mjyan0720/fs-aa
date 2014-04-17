@@ -22,8 +22,10 @@
 using namespace llvm;
 
 
-SEG::SEG(const Function *fn, const LoopInfo *li) : Fn(fn), LI(li){
+SEG::SEG(const Function *fn) : Fn(fn){
 	IsDeclaration = fn->isDeclaration();
+	if(IsDeclaration)
+		return;
 	initialize();
 	applyTransformation();
 }
