@@ -24,6 +24,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Support/Debug.h"
+#include "bdd.h"
+#include "fdd.h"
 #include <set>
 #include <map>
 #include <algorithm>
@@ -55,6 +57,9 @@ private:
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
  
+  /// top level points to graph
+  bdd TopLevelPTS;
+
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
 		AU.addRequired<TargetLibraryInfo>();
@@ -77,6 +82,12 @@ private:
 
 	/// initializeStmtWorkList - insert all SEGNode(statements) into StmtList
 	void initializeStmtWorkList(Function *F);
+
+  /// doAnalysis - performs actual analysis algorithm
+  void doAnalysis(Module &M);
+
+  /// setupAnalysis - initializes analysis datastructures
+  void setupAnalysis(Module &M);
 
 	/// printValueMap - print out debug information of value mapping.
 	void printValueMap();
@@ -142,30 +153,30 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
-	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi){
-                Function * f = &*mi;
-       		SEG *seg = new SEG(f);
+	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
+		Function * f = &*mi;
+ 		SEG *seg = new SEG(f);
 		seg->dump();
 		Func2SEG.insert( std::pair<Function*, SEG*>(f, seg) );
-        }
+	}
 }
 
 unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	unsigned id = 0;
 	std::pair<std::map<const Value*, unsigned>::iterator, bool> chk;
 	/// map global variables
-	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi){
+	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		const GlobalVariable *v = &*mi;
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(v, id++) );
 		assert( chk.second && "Value Id should be unique");
 	}
 	/// map functions
-	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi){
+	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		const Function *f = &*mi;
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(f, id++) );
 		assert( chk.second && "Value Id should be unique");
 		/// map arguments
-		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai){
+		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
 			const Argument *a = &*ai;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(a, id++) );
 			// give the location the argument points to an anonymous id
@@ -174,9 +185,9 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		}
 	}
 	/// map local statements
-	for(std::map<Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi){
+	for(std::map<Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		SEG *seg = mi->second;
-		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni){
+		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
 			SEGNode *sn = &*sni;
 			if(sn->isnPnode()==false)
 				continue;
@@ -198,10 +209,9 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	return id;
 }
 
-
 void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
-	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi){
-                Function * f = &*mi;
+	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
+		Function * f = &*mi;
 		FuncWorkList.push_back(f);
 		initializeStmtWorkList(f);
 	}
@@ -212,16 +222,84 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
 	SEG *seg = Func2SEG.find(F)->second;
 	StmtList *stmtList = new StmtList;
-	for(SEG::iterator si=seg->begin(), se=seg->end(); si!=se; ++si){
+	for(SEG::iterator si=seg->begin(), se=seg->end(); si!=se; ++si) {
 		SEGNode *sn = &*si;
 		const Instruction *inst = sn->getInstruction();
-		//Return Instruction doesn't define a variable,
-		//don't initialize worklist with it.
+		// Return Instruction doesn't define a variable,
+		// don't initialize worklist with it.
 		if(isa<ReturnInst>(inst))
 			continue;
 		stmtList->push_back(sn);
 	}
 	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
+}
+
+void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+  // iterate through each function and each worklist
+	std::map<Function*, StmtList*>::iterator list_iter;
+  std::vector<SEGNode*>::iterator stmt_iter;
+  for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
+		Function *f = list_iter->first;
+		StmtList* stmtList = list_iter->second;
+		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
+			SEGNode *sn = *stmt_iter;
+			const Instruction *i = sn->getInstruction();
+      /*
+			if (isa<AllocaInst>(i)) {
+        sn->setId(0);
+        preprocessAlloc(sn,Value2Int);
+			} else if (isa<PHINode>(i)) {
+        sn->setId(1);
+        preprocessCopy(sn,Value2Int);
+			} else if (isa<LoadInst>(i)) {
+        sn->setId(2);
+        preprocessLoad(sn,Value2Int);
+			} else if (isa<StoreInst>(i)) {
+        sn->setId(3);
+        preprocessStore(sn,Value2Int);
+			} else if (isa<CallInst>(i)) {
+        sn->setId(4);
+        preprocessCall(sn,Value2Int);
+			} else if (isa<ReturnInst>(i)) {
+        sn->setId(5);
+        preprocessRet(sn,Value2Int);
+			} // else if (isa<GetElementPtrInst>(i)) {
+        // sn->setId(6);
+        // preprocessGEP(sn,Value2Int);
+        // }
+      */
+		}
+	}
+}
+
+void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
+  // do SEG initialization
+  initializeFuncWorkList(M);
+  // setup analysis
+  TopLevelPTS = bdd_false();
+  setupAnalysis(M);
+  // iterate through each function and each worklist
+	std::map<Function*, StmtList*>::iterator list_iter;
+  std::vector<SEGNode*>::iterator stmt_iter;
+  for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
+		Function *f = list_iter->first;
+		StmtList* stmtList = list_iter->second;
+		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
+			SEGNode *sn = *stmt_iter;
+			switch(/*sn->getId()*/ 0 ) {
+				/*
+				case 0: processAlloc(&TopLevelPTS,sn); break;
+				case 1: processCopy(&TopLevelPTS,sn);  break;
+				case 2: processLoad(&TopLevelPTS,sn);  break;
+				case 3: processStore(&TopLevelPTS,sn); break;
+				case 4: processCall(&TopLevelPTS,sn);  break;
+				case 5: processRet(&TopLevelPTS,sn);   break;
+				case 6: processGEP(&TopLevelPTS,sn);   break;
+				*/
+        default: assert(false && "Out of bounds Instr Type");
+			}
+		}
+	}
 }
 
 void FlowSensitiveAliasAnalysis::printValueMap(){
