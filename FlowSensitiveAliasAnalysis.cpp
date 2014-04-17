@@ -38,10 +38,22 @@ namespace {
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
 private:
 	typedef std::vector<SEGNode*> StmtList;
+
+	/// Func2SEG - mapping from Function to corresponding SEG
 	std::map<Function*, SEG*> Func2SEG;
+
+	/// Value2Int - mapping from Value(Global Variable, Function, Local
+	/// Statement are included) to unique Id
 	std::map<const Value*, unsigned> Value2Int;
+
+	/// FuncWorkList - Functions need to be processed
 	std::vector<Function*> FuncWorkList;
+	/// StmtWorkList - the main algorithm iterate on it.
+	/// For each function, keep a statement list to work on for it.
 	std::map<Function*, StmtList*> StmtWorkList;
+
+	/// LocationCount - the total number of top variable and address-taken variable
+	unsigned LocationCount;
  
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
@@ -55,7 +67,8 @@ private:
 
 	/// initializeValueMap - give all values(global variable, function, local statement) 
 	/// a unique unsigned integer, and insert into Value2Int.
-	void initializeValueMap(Module &M);
+	/// Return the total number of locations used to encode bdd.
+	unsigned initializeValueMap(Module &M);
 
 	/// initializeFuncWorkList - insert all functions(including declaration) into
 	/// FuncWorkList.
@@ -122,7 +135,7 @@ public:
 
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	constructSEG(M);
-	initializeValueMap(M);
+	LocationCount = initializeValueMap(M);
 	initializeFuncWorkList(M);
 	printValueMap();
 	return false;
@@ -137,7 +150,7 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
         }
 }
 
-void FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
+unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	unsigned id = 0;
 	std::pair<std::map<const Value*, unsigned>::iterator, bool> chk;
 	/// map global variables
@@ -155,6 +168,8 @@ void FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai){
 			const Argument *a = &*ai;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(a, id++) );
+			// give the location the argument points to an anonymous id
+			id++;
 			assert( chk.second && "Value Id should be unique");
 		}
 	}
@@ -166,12 +181,21 @@ void FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			if(sn->isnPnode()==false)
 				continue;
 			const Instruction *inst = sn->getInstruction();
+			// don't need to give id to store/return inst
+			// return inst doesn't create new variable
+			// Assume the variable defined by StoreInst has already been assigned an Id
+			// in previous allocaInst. Otherwise, the variable is casted from non-pointer 
+			// variable, which is untractable, then treat it points everywhere.
+			if(isa<StoreInst>(inst) | isa<ReturnInst>(inst))
+				continue;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
+			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst))
 				id++;
 			assert( chk.second && "Value Id should be unique");	
 		}
 	}
+	return id;
 }
 
 
@@ -190,6 +214,11 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 	StmtList *stmtList = new StmtList;
 	for(SEG::iterator si=seg->begin(), se=seg->end(); si!=se; ++si){
 		SEGNode *sn = &*si;
+		const Instruction *inst = sn->getInstruction();
+		//Return Instruction doesn't define a variable,
+		//don't initialize worklist with it.
+		if(isa<ReturnInst>(inst))
+			continue;
 		stmtList->push_back(sn);
 	}
 	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
