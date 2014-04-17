@@ -12,6 +12,11 @@
 #include "llvm/IR/Instructions.h"
 
 /*
+ * TODO: move all preprocessing into generating BDDs,
+ *       no raw integers unless necessary
+ */
+
+/*
  * Typing for allsat callbacks:
  * void allsatcallback(char* varset,int size)
  *
@@ -84,8 +89,13 @@ std::vector<unsigned int> *pointsto(bdd b) {
 
 int preprocessAlloc(SEGNode *sn, std::map<Value*,unsigned int> *im) {
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store argument ids
   ArgIds->push_back(sn->getId()+1); 
   sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)) & fdd_ithvar(1,ArgIds->at(1)));
+  sn->setStaticData(StaticData);
   return 0;
 }
 
@@ -104,65 +114,97 @@ int preprocessCopy(SEGNode *sn, std::map<Value*,unsigned int> *im) {
   }
   sn->setArgIds(ArgIds);
   // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,sn->getId()));
   StaticData->push_back(argset);
+  StaticData->push_back(fdd_ithset(0));
   sn->setStaticData(StaticData); 
   return 0;
 }
 
+int preprocessLoad(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store static argument ids
+  ArgIds->push_back(im->at(const_cast<Value*>(ld->getPointerOperand())));
+  sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,sn->getId()));
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+  StaticData->push_back(fdd_ithset(0));
+  sn->setStaticData(StaticData);
+  // check validity of these guys? VALIDIDX2(x,y);
+  return 0;
+}
+
+int preprocessStore(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store ids for argument values
+  ArgIds->push_back(im->at(const_cast<Value*>(sr->getPointerOperand())));
+  ArgIds->push_back(im->at(const_cast<Value*>(sr->getValueOperand())));
+  sn->setArgIds(ArgIds);
+  // store bdds for corresponding values
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(1)));
+  sn->setStaticData(StaticData); 
+  return 0;
+}
+
+
 int processAlloc(bdd *tpts, SEGNode *sn) {
-  unsigned int v1,v2; 
   bdd alloc;
-  // get ids of ptr and alloc'd memory
-  v1 = sn->getId();
-  v2 = sn->getArgIds()->at(0);
   // add pair to top-level pts
-  alloc = fdd_ithvar(0,v1) & fdd_ithvar(1,v2);
+  alloc = sn->getStaticData()->at(0);
   *tpts = *tpts | alloc;
   return 0;
 }
 
 int processCopy(bdd *tpts, SEGNode *sn) {
-  bdd vs, vtpts;
-  unsigned int x;
+  bdd bddx, vs, vtpts, qt;
   // get id of variable for phi node and bdd representing set of phi arguments
-  x = sn->getId();
-  vs = sn->getStaticData()->at(0);
+  bddx = sn->getStaticData()->at(0);
+  vs   = sn->getStaticData()->at(1);
+  qt   = sn->getStaticData()->at(2);
   // quantify over original bdd + vs choices for all v values
-  vtpts = bdd_relprod(*tpts,vs,fdd_ithset(0));
+  vtpts = bdd_relprod(*tpts,vs,qt);
   // extend top tpts with (x -> vtpts)
-  *tpts = *tpts | (fdd_ithvar(0,x) & vtpts);
+  *tpts = *tpts | (bddx & vtpts);
   return 0;
 }
 
-bdd processLoad(bdd tpts, bdd kpts, unsigned int x, unsigned int y) {
-  bdd topy, ky, extpts;
-  VALIDIDX2(x,y);
+int processLoad(bdd *tpts, SEGNode *sn) {
+  bdd bddx, bddy, topy, ky, qt;
+  bddx = sn->getStaticData()->at(0);
+  bddy = sn->getStaticData()->at(1);
+  qt   = sn->getStaticData()->at(2);
   // get PTop(y)
-  topy = out2in(restrictIn(tpts,y));
+  topy = out2in(bdd_restrict(*tpts,bddy));
   // get PK(PTop(y))
-  ky   = bdd_relprod(kpts,topy,fdd_ithset(0));
+  ky   = bdd_relprod(sn->getInSet(),topy,qt);
   // extend top pts
-  tpts = tpts | (fdd_ithvar(0,x) & ky);
-  return tpts;
+  *tpts = *tpts | (bddx & ky);
+  return 0;
 }
 
-bdd processStore(bdd tpts, bdd inkpts, unsigned int x, unsigned int y) {
+int processStore(bdd *tpts, SEGNode *sn) {
   bdd bddx, bddy, topx, topy, outkpts;
-  VALIDIDX2(x,y);
   // get x and y BDDs
-  bddx = fdd_ithvar(0,x);
-  bddy = fdd_ithvar(0,y);
+  bddx = sn->getStaticData()->at(0);
+  bddy = sn->getStaticData()->at(1);
   // get PTop(y)
-  topy = bdd_restrict(tpts,bddy);
+  topy = bdd_restrict(*tpts,bddy);
   // get PTop(x)
-  topx = out2in(bdd_restrict(tpts,bddx));
+  topx = out2in(bdd_restrict(*tpts,bddx));
   // if only 1 satisfying assignment then strong update
-  if (bdd_satcount(bddx & tpts) == 1.0)
-    outkpts = bdd_apply(inkpts,topx,bddop_diff);
+  if (bdd_satcount(bddx & *tpts) == 1.0)
+    outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
   // else weak update
-  else outkpts = inkpts;
+  else outkpts = sn->getInSet();
   // return modified outkpts
-  return outkpts | (topx & topy);
+  sn->setOutSet(outkpts | (topx & topy));
+  return 0;
 }
 
 /*
