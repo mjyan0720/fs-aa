@@ -9,6 +9,7 @@
 #include "bdd.h"
 #include "fdd.h"
 #include "sspt.h"
+#include "llvm/IR/Instructions.h"
 
 /*
  * Typing for allsat callbacks:
@@ -25,7 +26,7 @@
  * use global variable to determine number of dimensions, etc...
  */
 
-using namespace std;
+using namespace llvm;
 
 static unsigned int POINTSTO_MAX      = 0;
 static bddPair* LPAIR                 = NULL;
@@ -68,9 +69,9 @@ void pointsToFinalize() {
 }
 
 // given a b which is a set in FDD1, find all elements in it
-vector<unsigned int> *pointsto(bdd b) {
-  vector<unsigned int> *v;
-  v = new vector<unsigned int>();
+std::vector<unsigned int> *pointsto(bdd b) {
+  std::vector<unsigned int> *v;
+  v = new std::vector<unsigned int>();
   // check if each element is in the set
   for (unsigned int i = 0; i < POINTSTO_MAX; i++) {
     int cnt = bdd_satcount(restrictIn(b,i));
@@ -81,27 +82,56 @@ vector<unsigned int> *pointsto(bdd b) {
   return v;
 }
 
-bdd processAlloc(bdd tpts, unsigned int v1, unsigned int v2) {
-  bdd alloc;
-  VALIDIDX2(v1,v2);
-  alloc = fdd_ithvar(0,v1) & fdd_ithvar(1,v2);
-  return tpts | alloc;
+int preprocessAlloc(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  ArgIds->push_back(sn->getId()+1); 
+  sn->setArgIds(ArgIds);
+  return 0;
 }
 
-bdd processCopy(bdd tpts, unsigned int x, set<unsigned int> *vars) {
-  bdd vs, vtpts;
-  VALIDIDX1(x);
-  // build up union of all v possibilities
-  vs = bdd_false();
-  for(set<unsigned int>::iterator elt = vars->begin(); elt != vars->end(); ++elt) {
-    VALIDIDX1(*elt);
-    vs = vs | fdd_ithvar(0,*elt);
+int preprocessCopy(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const PHINode *phi = cast<PHINode>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  bdd argset = bdd_false();
+  unsigned int id;
+  // store static argument ids
+  for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
+    id = im->at(*oit);
+    VALIDIDX1(id);
+    ArgIds->push_back(id);
+    argset |= fdd_ithvar(0,id);
   }
+  sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(argset);
+  sn->setStaticData(StaticData); 
+  return 0;
+}
+
+int processAlloc(bdd *tpts, SEGNode *sn) {
+  unsigned int v1,v2; 
+  bdd alloc;
+  // get ids of ptr and alloc'd memory
+  v1 = sn->getId();
+  v2 = sn->getArgIds()->at(0);
+  // add pair to top-level pts
+  alloc = fdd_ithvar(0,v1) & fdd_ithvar(1,v2);
+  *tpts = *tpts | alloc;
+  return 0;
+}
+
+int processCopy(bdd *tpts, SEGNode *sn) {
+  bdd vs, vtpts;
+  unsigned int x;
+  // get id of variable for phi node and bdd representing set of phi arguments
+  x = sn->getId();
+  vs = sn->getStaticData()->at(0);
   // quantify over original bdd + vs choices for all v values
-  vtpts = bdd_relprod(tpts,vs,fdd_ithset(0));
+  vtpts = bdd_relprod(*tpts,vs,fdd_ithset(0));
   // extend top tpts with (x -> vtpts)
-  tpts = tpts | (fdd_ithvar(0,x) & vtpts);
-  return tpts;
+  *tpts = *tpts | (fdd_ithvar(0,x) & vtpts);
+  return 0;
 }
 
 bdd processLoad(bdd tpts, bdd kpts, unsigned int x, unsigned int y) {
@@ -143,18 +173,18 @@ bdd processStore(bdd tpts, bdd inkpts, unsigned int x, unsigned int y) {
  *            pointed to is discovered dynamically and a set of function ids is returned
  *       
  */
-bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f, bool ptr, vector<unsigned int> *args) {
-  vector<unsigned int>::iterator fit, pit;
-  vector<unsigned int> *funcs, *params;
-  vector<bdd>::iterator ait;
-  vector<bdd> *argpts;
+bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f, bool ptr, std::vector<unsigned int> *args) {
+  std::vector<unsigned int>::iterator fit, pit;
+  std::vector<unsigned int> *funcs, *params;
+  std::vector<bdd>::iterator ait;
+  std::vector<bdd> *argpts;
   bdd filtk, bddargs, outkpts;
   unsigned int size;
   VALIDIDX2(x,f);
   size = args->size();
   bddargs = bddfalse;
-  funcs = new vector<unsigned int>();
-  argpts = new vector<bdd>(); 
+  funcs = new std::vector<unsigned int>();
+  argpts = new std::vector<bdd>(); 
   // compute every call argument OR'd together
   // and where call arguments point
   for (pit = args->begin(); pit != args->end(); ++pit) {
@@ -194,8 +224,8 @@ bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f
 }
 
 unsigned int processRet(unsigned int f, unsigned int k, bdd tpts, unsigned int x) {
-  vector<callsite_t> *callsites;
-  vector<callsite_t>::iterator cit;
+  std::vector<callsite_t> *callsites;
+  std::vector<callsite_t>::iterator cit;
   // get callsites
   callsites = funCallsites(f);
   // for each callsite
