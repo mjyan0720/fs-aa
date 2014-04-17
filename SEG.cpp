@@ -45,12 +45,7 @@ void SEG::initialize() {
 	//create an empty start node
 	//entrySN can be treated as a Pnode
 	//in the algorithm, ProcessCall update IN set of entrySN
-	//FIXME SEGNode should provide construct function with no Inst
-	//FIXME SEG provide a function to get entryNode(maybe extra attribute
-	//is needed)
-	//FIXME every function in SEGNode using instruction should check it first.
-	SEGNode *entrySN = new SEGNode(this);
-//	this->insert(entrySN);
+	EntryNode = new SEGNode(this);
 	for(Function::const_iterator bbi=Fn->begin(), bbe=Fn->end(); bbi!=bbe; ++bbi){
 		const BasicBlock *blk = &(*bbi);
 		for(BasicBlock::const_iterator insti=blk->begin(), inste=blk->end(); insti!=inste; ++insti){
@@ -64,8 +59,8 @@ void SEG::initialize() {
 	// set up predecessor/successor for entrySN
 	const Instruction *firstInst = &*(Fn->begin()->begin());
 	SEGNode *firstSN = inst2sn.find(firstInst)->second;
-	entrySN->addSuccessor(firstSN);
-	DEBUG(errs()<<"Set edges: "<<*entrySN<<" --> "<<*firstSN<<"\n");
+	EntryNode->addSuccessor(firstSN);
+	DEBUG(errs()<<"Set edges: "<<*EntryNode<<" --> "<<*firstSN<<"\n");
 
 	// set up uses for entrySN
 	for(Function::const_arg_iterator ai=Fn->arg_begin(), ae=Fn->arg_end(); ai!=ae; ++ai){
@@ -75,8 +70,8 @@ void SEG::initialize() {
 			assert( useInst!=NULL && "user must be an instruction");
 			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *useSN = inst2sn.find(useInst)->second;
-			entrySN->addUser(useSN);
-			DEBUG(errs()<<"Set uses: "<<*entrySN<<" --> "<<*useSN<<"\n");
+			EntryNode->addUser(useSN);
+			DEBUG(errs()<<"Set uses: "<<*EntryNode<<" --> "<<*useSN<<"\n");
 		}
 	}
 

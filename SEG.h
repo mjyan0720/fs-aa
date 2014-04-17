@@ -33,7 +33,8 @@ private:
 	const Function *Fn;
 	bool IsDeclaration;
 	const LoopInfo *LI;
-	
+
+	SEGNode *EntryNode;	
 	/// List of SEGNode in function
 	typedef ilist<SEGNode> SEGNodeListType;
 	SEGNodeListType SEGNodes;
@@ -49,6 +50,8 @@ public:
 	const Function *getFunction() { return Fn; }
 	bool isDeclaration()	{ return IsDeclaration; }
 
+
+	SEGNode *getEntryNode() { return EntryNode; }
 	/// viewSEG - this function is used for debugger.
 	/// call SEG->viewSEG() and get a ghostview window displaying the
 	/// SEG of current function with code for each SEGNode inside.
