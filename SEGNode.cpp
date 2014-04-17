@@ -22,6 +22,10 @@
 
 using namespace llvm;
 
+SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
+	IsnPnode = false;
+}
+
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
 	IsnPnode = isa<AllocaInst>(inst) | isa<PHINode>(inst)  | isa<LoadInst>(inst) |
 		   isa<StoreInst>(inst)  | isa<CallInst>(inst) | isa<ReturnInst>(inst);
@@ -114,11 +118,18 @@ void SEGNode::eraseFromParent() {
 }
 
 void SEGNode::dump() const {
-	Inst->dump();
+	if(Inst==NULL)
+		dbgs()<<"  \n";
+	else
+		Inst->dump();
 }
 
 raw_ostream &llvm::operator<<(raw_ostream &OS, const SEGNode &SN) {
-	SN.getInstruction()->print(OS);
+	const Instruction *I = SN.getInstruction();
+	if(I==NULL)
+		OS<<"  ";
+	else
+		I->print(OS);
 	return OS;
 }
 

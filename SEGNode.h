@@ -49,6 +49,8 @@ private:
 public:
 	SEGNode() { }
 
+	explicit SEGNode(SEG *parent);
+
 	explicit SEGNode(const Instruction *inst, SEG *parent);
 	
 	~SEGNode();
@@ -151,7 +153,10 @@ public:
 	void dump() const;
 
 	bool operator==(const SEGNode &sn) {
-		return (Inst == sn.getInstruction());
+		if(Inst==NULL || sn.getInstruction()==NULL)
+			return false;
+		else
+			return (Inst == sn.getInstruction());
 	}
 
 };

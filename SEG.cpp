@@ -41,6 +41,16 @@ void SEG::dump() const {
 
 void SEG::initialize() {
 	std::map<const Instruction*, SEGNode*> inst2sn;
+
+	//create an empty start node
+	//entrySN can be treated as a Pnode
+	//in the algorithm, ProcessCall update IN set of entrySN
+	//FIXME SEGNode should provide construct function with no Inst
+	//FIXME SEG provide a function to get entryNode(maybe extra attribute
+	//is needed)
+	//FIXME every function in SEGNode using instruction should check it first.
+	SEGNode *entrySN = new SEGNode(this);
+//	this->insert(entrySN);
 	for(Function::const_iterator bbi=Fn->begin(), bbe=Fn->end(); bbi!=bbe; ++bbi){
 		const BasicBlock *blk = &(*bbi);
 		for(BasicBlock::const_iterator insti=blk->begin(), inste=blk->end(); insti!=inste; ++insti){
@@ -49,6 +59,25 @@ void SEG::initialize() {
 			this->insert(sn);
 			inst2sn.insert( std::pair<const Instruction*, SEGNode*>(I, sn) );
 		}	
+	}
+
+	// set up predecessor/successor for entrySN
+	const Instruction *firstInst = &*(Fn->begin()->begin());
+	SEGNode *firstSN = inst2sn.find(firstInst)->second;
+	entrySN->addSuccessor(firstSN);
+	DEBUG(errs()<<"Set edges: "<<*entrySN<<" --> "<<*firstSN<<"\n");
+
+	// set up uses for entrySN
+	for(Function::const_arg_iterator ai=Fn->arg_begin(), ae=Fn->arg_end(); ai!=ae; ++ai){
+		const Argument *A = &*ai;
+		for(Value::const_use_iterator usei=A->use_begin(), usee=A->use_end(); usei!=usee; ++usei){
+			const Instruction *useInst = dyn_cast<Instruction>(*usei);
+			assert( useInst!=NULL && "user must be an instruction");
+			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
+			SEGNode *useSN = inst2sn.find(useInst)->second;
+			entrySN->addUser(useSN);
+			DEBUG(errs()<<"Set uses: "<<*entrySN<<" --> "<<*useSN<<"\n");
+		}
 	}
 
 	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni){
@@ -83,12 +112,7 @@ void SEG::initialize() {
 			DEBUG(errs()<<"Set uses: "<<*sn<<" --> "<<*useSN<<"\n");
 		}
 	}
-	DEBUG(
-	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni)
-		for(SEGNode::succ_iterator succi=(&*sni)->succ_begin(), succe=(&*sni)->succ_end(); succi!=succe; ++succi)
-			errs()<<*sni<<" --> "<<**succi<<"\n"
-	);
-
+	dump();
 }
 
 void SEG::applyTransformation(){
@@ -103,7 +127,7 @@ void SEG::applyTransformation(){
 	while( change==true && !WorkList.empty()){
 		change = false;
 		//applyT2
-/*		for(std::set<SEGNode*>::iterator wli=WorkList.begin(), wle=WorkList.end(); wli!=wle; ++wli){
+		for(std::set<SEGNode*>::iterator wli=WorkList.begin(), wle=WorkList.end(); wli!=wle; ++wli){
 			SEGNode *sn = *wli;
 			//remove self-loop
 			SEGNode::succ_iterator I = std::find(sn->succ_begin(), sn->succ_end(), sn);
@@ -119,7 +143,7 @@ void SEG::applyTransformation(){
 				change = true;
 			}
 		}
-*/		//applyT4
+		//applyT4
 		for(scc_iterator<SEG*> I=scc_begin(this), E=scc_end(this); I != E; ++I){
 			std::vector<SEGNode *> &SCC = *I;
 			assert( !SCC.empty() && "SCC with no instructions");
