@@ -20,7 +20,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Analysis/LoopInfo.h"
-
+#include "bdd.h"
 #include <set>
 
 namespace llvm {
@@ -30,7 +30,7 @@ class SEG;
 
 class SEGNode : public ilist_node<SEGNode>{
 private:
-	///Inst - each node of SEG is one instruction
+	/// Inst - each node of SEG is one instruction
 	const Instruction *Inst;
 
 	/// IsnPnode - Indicate whether this node is preserving node or not
@@ -40,12 +40,18 @@ private:
 	/// Parent - Indicate SEG this node resides in.
 	SEG *Parent;
 
-	///Predecessors/Successors - keep track of the predecessor / successor
-	///nodes
+	/// Predecessors/Successors - keep track of the predecessor / successor
+	/// nodes
 	std::set<SEGNode *> Predecessors;
 	std::set<SEGNode *> Successors;
 	std::set<SEGNode *> Users;
 	std::set<SEGNode *> Defs;
+
+	/// In and Out Points-To Sets as BDDs
+  bdd in, out;
+
+	/// Identifier of this SEGNode in the BDD
+	unsigned int id;
 public:
 	SEGNode() { }
 
