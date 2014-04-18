@@ -242,23 +242,26 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			const Instruction *i = sn->getInstruction();
+      // set SEGNode id if not StoreInst
+      if (!isa<StoreInst>(i)) sn->setId(Value2Int[sn->getInstruction()]);
+      // set SEGNode type and perform preprocessing
 			if (isa<AllocaInst>(i)) {
-        sn->setId(0);
+        sn->setType(0);
         preprocessAlloc(sn,&Value2Int);
 			} else if (isa<PHINode>(i)) {
-        sn->setId(1);
+        sn->setType(1);
         preprocessCopy(sn,&Value2Int);
 			} else if (isa<LoadInst>(i)) {
-        sn->setId(2);
+        sn->setType(2);
         preprocessLoad(sn,&Value2Int);
 			} else if (isa<StoreInst>(i)) {
-        sn->setId(3);
+        sn->setType(3);
         preprocessStore(sn,&Value2Int);
 			} else if (isa<CallInst>(i)) {
-        sn->setId(4);
+        sn->setType(4);
         preprocessCall(sn,&Value2Int);
 			} else if (isa<ReturnInst>(i)) {
-        sn->setId(5);
+        sn->setType(5);
         preprocessRet(sn,&Value2Int);
 			} // else if (isa<GetElementPtrInst>(i)) {
         // sn->setId(6);
@@ -282,13 +285,13 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
-			switch(sn->getId()) {
+			switch(sn->getType()) {
 				case 0: processAlloc(&TopLevelPTS,sn); break;
 				case 1: processCopy(&TopLevelPTS,sn);  break;
 				case 2: processLoad(&TopLevelPTS,sn);  break;
 				case 3: processStore(&TopLevelPTS,sn); break;
-				case 4: processCall(&TopLevelPTS,sn);  break;
-				case 5: processRet(&TopLevelPTS,sn);   break;
+				//case 4: processCall(&TopLevelPTS,sn);  break;
+				//case 5: processRet(&TopLevelPTS,sn);   break;
 				//case 6: processGEP(&TopLevelPTS,sn);   break;
         default: assert(false && "Out of bounds Instr Type");
 			}
