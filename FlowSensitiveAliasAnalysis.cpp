@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "flowsensitive-aa"
-#include "SEG.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFG.h"
@@ -26,6 +25,8 @@
 #include "llvm/Support/Debug.h"
 #include "bdd.h"
 #include "fdd.h"
+#include "pointsto.h"
+#include "SEG.h"
 #include <set>
 #include <map>
 #include <algorithm>
@@ -34,8 +35,6 @@ using namespace llvm;
 
 
 namespace {
-
-
 
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
 private:

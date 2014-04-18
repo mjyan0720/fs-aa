@@ -8,7 +8,7 @@
 #include <vector>
 #include "bdd.h"
 #include "fdd.h"
-#include "sspt.h"
+#include "pointsto.h"
 #include "llvm/IR/Instructions.h"
 
 /*
