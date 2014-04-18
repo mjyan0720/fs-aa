@@ -9,6 +9,12 @@
 #include "bdd.h"
 #include "fdd.h"
 #include "sspt.h"
+#include "llvm/IR/Instructions.h"
+
+/*
+ * TODO: move all preprocessing into generating BDDs,
+ *       no raw integers unless necessary
+ */
 
 /*
  * Typing for allsat callbacks:
@@ -25,7 +31,7 @@
  * use global variable to determine number of dimensions, etc...
  */
 
-using namespace std;
+using namespace llvm;
 
 static unsigned int POINTSTO_MAX      = 0;
 static bddPair* LPAIR                 = NULL;
@@ -68,9 +74,9 @@ void pointsToFinalize() {
 }
 
 // given a b which is a set in FDD1, find all elements in it
-vector<unsigned int> *pointsto(bdd b) {
-  vector<unsigned int> *v;
-  v = new vector<unsigned int>();
+std::vector<unsigned int> *pointsto(bdd b) {
+  std::vector<unsigned int> *v;
+  v = new std::vector<unsigned int>();
   // check if each element is in the set
   for (unsigned int i = 0; i < POINTSTO_MAX; i++) {
     int cnt = bdd_satcount(restrictIn(b,i));
@@ -81,58 +87,124 @@ vector<unsigned int> *pointsto(bdd b) {
   return v;
 }
 
-bdd processAlloc(bdd tpts, unsigned int v1, unsigned int v2) {
-  bdd alloc;
-  VALIDIDX2(v1,v2);
-  alloc = fdd_ithvar(0,v1) & fdd_ithvar(1,v2);
-  return tpts | alloc;
+int preprocessAlloc(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store argument ids
+  ArgIds->push_back(sn->getId()+1); 
+  sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)) & fdd_ithvar(1,ArgIds->at(1)));
+  sn->setStaticData(StaticData);
+  return 0;
 }
 
-bdd processCopy(bdd tpts, unsigned int x, set<unsigned int> *vars) {
-  bdd vs, vtpts;
-  VALIDIDX1(x);
-  // build up union of all v possibilities
-  vs = bdd_false();
-  for(set<unsigned int>::iterator elt = vars->begin(); elt != vars->end(); ++elt) {
-    VALIDIDX1(*elt);
-    vs = vs | fdd_ithvar(0,*elt);
+int preprocessCopy(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const PHINode *phi = cast<PHINode>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  bdd argset = bdd_false();
+  unsigned int id;
+  // store static argument ids
+  for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
+    id = im->at(*oit);
+    VALIDIDX1(id);
+    ArgIds->push_back(id);
+    argset |= fdd_ithvar(0,id);
   }
+  sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,sn->getId()));
+  StaticData->push_back(argset);
+  StaticData->push_back(fdd_ithset(0));
+  sn->setStaticData(StaticData); 
+  return 0;
+}
+
+int preprocessLoad(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store static argument ids
+  ArgIds->push_back(im->at(const_cast<Value*>(ld->getPointerOperand())));
+  sn->setArgIds(ArgIds);
+  // store static bdd data
+  StaticData->push_back(fdd_ithvar(0,sn->getId()));
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+  StaticData->push_back(fdd_ithset(0));
+  sn->setStaticData(StaticData);
+  // check validity of these guys? VALIDIDX2(x,y);
+  return 0;
+}
+
+int preprocessStore(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+  const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
+  std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+  std::vector<bdd> *StaticData = new std::vector<bdd>();
+  // store ids for argument values
+  ArgIds->push_back(im->at(const_cast<Value*>(sr->getPointerOperand())));
+  ArgIds->push_back(im->at(const_cast<Value*>(sr->getValueOperand())));
+  sn->setArgIds(ArgIds);
+  // store bdds for corresponding values
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+  StaticData->push_back(fdd_ithvar(0,ArgIds->at(1)));
+  sn->setStaticData(StaticData); 
+  return 0;
+}
+
+
+int processAlloc(bdd *tpts, SEGNode *sn) {
+  bdd alloc;
+  // add pair to top-level pts
+  alloc = sn->getStaticData()->at(0);
+  *tpts = *tpts | alloc;
+  return 0;
+}
+
+int processCopy(bdd *tpts, SEGNode *sn) {
+  bdd bddx, vs, vtpts, qt;
+  // get id of variable for phi node and bdd representing set of phi arguments
+  bddx = sn->getStaticData()->at(0);
+  vs   = sn->getStaticData()->at(1);
+  qt   = sn->getStaticData()->at(2);
   // quantify over original bdd + vs choices for all v values
-  vtpts = bdd_relprod(tpts,vs,fdd_ithset(0));
+  vtpts = bdd_relprod(*tpts,vs,qt);
   // extend top tpts with (x -> vtpts)
-  tpts = tpts | (fdd_ithvar(0,x) & vtpts);
-  return tpts;
+  *tpts = *tpts | (bddx & vtpts);
+  return 0;
 }
 
-bdd processLoad(bdd tpts, bdd kpts, unsigned int x, unsigned int y) {
-  bdd topy, ky, extpts;
-  VALIDIDX2(x,y);
+int processLoad(bdd *tpts, SEGNode *sn) {
+  bdd bddx, bddy, topy, ky, qt;
+  bddx = sn->getStaticData()->at(0);
+  bddy = sn->getStaticData()->at(1);
+  qt   = sn->getStaticData()->at(2);
   // get PTop(y)
-  topy = out2in(restrictIn(tpts,y));
+  topy = out2in(bdd_restrict(*tpts,bddy));
   // get PK(PTop(y))
-  ky   = bdd_relprod(kpts,topy,fdd_ithset(0));
+  ky   = bdd_relprod(sn->getInSet(),topy,qt);
   // extend top pts
-  tpts = tpts | (fdd_ithvar(0,x) & ky);
-  return tpts;
+  *tpts = *tpts | (bddx & ky);
+  return 0;
 }
 
-bdd processStore(bdd tpts, bdd inkpts, unsigned int x, unsigned int y) {
+int processStore(bdd *tpts, SEGNode *sn) {
   bdd bddx, bddy, topx, topy, outkpts;
-  VALIDIDX2(x,y);
   // get x and y BDDs
-  bddx = fdd_ithvar(0,x);
-  bddy = fdd_ithvar(0,y);
+  bddx = sn->getStaticData()->at(0);
+  bddy = sn->getStaticData()->at(1);
   // get PTop(y)
-  topy = bdd_restrict(tpts,bddy);
+  topy = bdd_restrict(*tpts,bddy);
   // get PTop(x)
-  topx = out2in(bdd_restrict(tpts,bddx));
+  topx = out2in(bdd_restrict(*tpts,bddx));
   // if only 1 satisfying assignment then strong update
-  if (bdd_satcount(bddx & tpts) == 1.0)
-    outkpts = bdd_apply(inkpts,topx,bddop_diff);
+  if (bdd_satcount(bddx & *tpts) == 1.0)
+    outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
   // else weak update
-  else outkpts = inkpts;
+  else outkpts = sn->getInSet();
   // return modified outkpts
-  return outkpts | (topx & topy);
+  sn->setOutSet(outkpts | (topx & topy));
+  return 0;
 }
 
 /*
@@ -143,18 +215,18 @@ bdd processStore(bdd tpts, bdd inkpts, unsigned int x, unsigned int y) {
  *            pointed to is discovered dynamically and a set of function ids is returned
  *       
  */
-bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f, bool ptr, vector<unsigned int> *args) {
-  vector<unsigned int>::iterator fit, pit;
-  vector<unsigned int> *funcs, *params;
-  vector<bdd>::iterator ait;
-  vector<bdd> *argpts;
+bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f, bool ptr, std::vector<unsigned int> *args) {
+  std::vector<unsigned int>::iterator fit, pit;
+  std::vector<unsigned int> *funcs, *params;
+  std::vector<bdd>::iterator ait;
+  std::vector<bdd> *argpts;
   bdd filtk, bddargs, outkpts;
   unsigned int size;
   VALIDIDX2(x,f);
   size = args->size();
   bddargs = bddfalse;
-  funcs = new vector<unsigned int>();
-  argpts = new vector<bdd>(); 
+  funcs = new std::vector<unsigned int>();
+  argpts = new std::vector<bdd>(); 
   // compute every call argument OR'd together
   // and where call arguments point
   for (pit = args->begin(); pit != args->end(); ++pit) {
@@ -194,8 +266,8 @@ bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f
 }
 
 unsigned int processRet(unsigned int f, unsigned int k, bdd tpts, unsigned int x) {
-  vector<callsite_t> *callsites;
-  vector<callsite_t>::iterator cit;
+  std::vector<callsite_t> *callsites;
+  std::vector<callsite_t>::iterator cit;
   // get callsites
   callsites = funCallsites(f);
   // for each callsite

@@ -22,6 +22,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "bdd.h"
 #include <set>
+#include <vector>
 
 namespace llvm {
 
@@ -48,10 +49,19 @@ private:
 	std::set<SEGNode *> Defs;
 
 	/// In and Out Points-To Sets as BDDs
-  bdd in, out;
+  bdd In, Out;
 
 	/// Identifier of this SEGNode in the BDD
-	unsigned int id;
+	unsigned int Id;
+
+  /// Store variable Ids for arguments to this instruction
+  std::vector<unsigned int> *ArgIds;
+
+  /// Store static BDDs computed for this instruction
+  std::vector<bdd> *StaticData;
+
+  /// Type of this instruction
+  unsigned int Type;
 public:
 	SEGNode() { }
 
@@ -67,6 +77,20 @@ public:
 	const Instruction *getInstruction() const { return Inst; }
 	bool	isnPnode() { return IsnPnode; }
 	SEG *getParent() { return Parent; }
+
+  /// Access Extra Information
+  std::vector<unsigned int> *getArgIds() { return ArgIds; }
+  unsigned int getId() { return Id; }
+  unsigned int getType() { return Type; }
+  bdd getInSet() { return In; }
+  bdd getOutSet() { return Out; }
+  std::vector<bdd> *getStaticData() { return StaticData; }
+  void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds; }
+  void setId(unsigned int Id) { this->Id = Id; }
+  void setType(unsigned int Type) { this->Type = Type; }
+  void setInSet(bdd In) { this->In = In; }
+  void setOutSet(bdd Out) { this->Out = Out; }
+  void setStaticData(std::vector<bdd> *StaticData) { this->StaticData = StaticData; }
 
 	/// SEG-CFG iterators
 	typedef std::set<SEGNode *>::iterator	pred_iterator;
