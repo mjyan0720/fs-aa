@@ -147,6 +147,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	LocationCount = initializeValueMap(M);
 	initializeFuncWorkList(M);
 	printValueMap();
+  doAnalysis(M);
 	return false;
 }
 

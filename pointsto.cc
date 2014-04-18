@@ -142,12 +142,17 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
   std::vector<bdd> *StaticData = new std::vector<bdd>();
   // store ids for argument values
+  puts("Zero");
   ArgIds->push_back(im->at(sr->getPointerOperand()));
+  puts("First");
   ArgIds->push_back(im->at(sr->getValueOperand()));
+  puts("Second");
   sn->setArgIds(ArgIds);
   // store bdds for corresponding values
   StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+  puts("Third");
   StaticData->push_back(fdd_ithvar(0,ArgIds->at(1)));
+  puts("Fourth");
   sn->setStaticData(StaticData); 
   return 0;
 }
