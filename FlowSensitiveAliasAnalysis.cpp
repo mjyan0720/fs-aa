@@ -257,13 +257,13 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<StoreInst>(i)) {
         sn->setType(3);
         preprocessStore(sn,&Value2Int);
-			} else if (isa<CallInst>(i)) {
-        sn->setType(4);
-        preprocessCall(sn,&Value2Int);
-			} else if (isa<ReturnInst>(i)) {
-        sn->setType(5);
-        preprocessRet(sn,&Value2Int);
-			} // else if (isa<GetElementPtrInst>(i)) {
+			} // else if (isa<CallInst>(i)) {
+        // sn->setType(4);
+        // preprocessCall(sn,&Value2Int);
+			  // } else if (isa<ReturnInst>(i)) {
+        // sn->setType(5);
+        // preprocessRet(sn,&Value2Int);
+			  // }  else if (isa<GetElementPtrInst>(i)) {
         // sn->setId(6);
         // preprocessGEP(sn,Value2Int);
         // }
