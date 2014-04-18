@@ -12,19 +12,19 @@ std::vector<unsigned int> *pointsto(bdd b);
 
 
 // Preprocess functions perform all static variable lookups for these nodes
-int preprocessAlloc(llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im);
-int preprocessCopy(llvm::SEGNode *sn,  std::map<llvm::Value*,unsigned int> *im);
-int preprocessLoad(llvm::SEGNode *sn,  std::map<llvm::Value*,unsigned int> *im);
-int preprocessStore(llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im);
-int preprocessCall(llvm::SEGNode *sn,  std::map<llvm::Value*,unsigned int> *im);
-int preprocessRet(llvm::SEGNode *sn,   std::map<llvm::Value*,unsigned int> *im);
+int preprocessAlloc(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
+int preprocessCopy(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+int preprocessLoad(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+int preprocessStore(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
+int preprocessCall(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+int preprocessRet(llvm::SEGNode *sn,   std::map<const llvm::Value*,unsigned int> *im);
 
-int processAlloc(bdd *tpts, llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im); 
-int processCopy(bdd *tpts,  llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im); 
-int processLoad(bdd *tpts,  llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im); 
-int processStore(bdd *tpts, llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im); 
-int processCall(bdd *tpts,  llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im);
-int processRet(bdd *tpts,   llvm::SEGNode *sn, std::map<llvm::Value*,unsigned int> *im);
+int processAlloc(bdd *tpts, llvm::SEGNode *sn); 
+int processCopy(bdd *tpts,  llvm::SEGNode *sn); 
+int processLoad(bdd *tpts,  llvm::SEGNode *sn); 
+int processStore(bdd *tpts, llvm::SEGNode *sn); 
+int processCall(bdd *tpts,  llvm::SEGNode *sn);
+int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
 typedef std::pair<unsigned int, unsigned int> callsite_t;
 void propogateTopLevel(unsigned int f, unsigned int k);

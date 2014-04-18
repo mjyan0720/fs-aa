@@ -87,7 +87,7 @@ std::vector<unsigned int> *pointsto(bdd b) {
   return v;
 }
 
-int preprocessAlloc(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
   std::vector<bdd> *StaticData = new std::vector<bdd>();
   // store argument ids
@@ -99,7 +99,7 @@ int preprocessAlloc(SEGNode *sn, std::map<Value*,unsigned int> *im) {
   return 0;
 }
 
-int preprocessCopy(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   const PHINode *phi = cast<PHINode>(sn->getInstruction());
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
   std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -121,12 +121,12 @@ int preprocessCopy(SEGNode *sn, std::map<Value*,unsigned int> *im) {
   return 0;
 }
 
-int preprocessLoad(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+int preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
   std::vector<bdd> *StaticData = new std::vector<bdd>();
   // store static argument ids
-  ArgIds->push_back(im->at(const_cast<Value*>(ld->getPointerOperand())));
+  ArgIds->push_back(im->at(ld->getPointerOperand()));
   sn->setArgIds(ArgIds);
   // store static bdd data
   StaticData->push_back(fdd_ithvar(0,sn->getId()));
@@ -137,13 +137,13 @@ int preprocessLoad(SEGNode *sn, std::map<Value*,unsigned int> *im) {
   return 0;
 }
 
-int preprocessStore(SEGNode *sn, std::map<Value*,unsigned int> *im) {
+int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
   std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
   std::vector<bdd> *StaticData = new std::vector<bdd>();
   // store ids for argument values
-  ArgIds->push_back(im->at(const_cast<Value*>(sr->getPointerOperand())));
-  ArgIds->push_back(im->at(const_cast<Value*>(sr->getValueOperand())));
+  ArgIds->push_back(im->at(sr->getPointerOperand()));
+  ArgIds->push_back(im->at(sr->getValueOperand()));
   sn->setArgIds(ArgIds);
   // store bdds for corresponding values
   StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));

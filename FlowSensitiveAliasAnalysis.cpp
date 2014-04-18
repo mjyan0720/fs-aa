@@ -33,7 +33,6 @@
 
 using namespace llvm;
 
-
 namespace {
 
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
@@ -238,35 +237,33 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	std::map<Function*, StmtList*>::iterator list_iter;
   std::vector<SEGNode*>::iterator stmt_iter;
   for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
-		Function *f = list_iter->first;
+		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			const Instruction *i = sn->getInstruction();
-      /*
 			if (isa<AllocaInst>(i)) {
         sn->setId(0);
-        preprocessAlloc(sn,Value2Int);
+        preprocessAlloc(sn,&Value2Int);
 			} else if (isa<PHINode>(i)) {
         sn->setId(1);
-        preprocessCopy(sn,Value2Int);
+        preprocessCopy(sn,&Value2Int);
 			} else if (isa<LoadInst>(i)) {
         sn->setId(2);
-        preprocessLoad(sn,Value2Int);
+        preprocessLoad(sn,&Value2Int);
 			} else if (isa<StoreInst>(i)) {
         sn->setId(3);
-        preprocessStore(sn,Value2Int);
+        preprocessStore(sn,&Value2Int);
 			} else if (isa<CallInst>(i)) {
         sn->setId(4);
-        preprocessCall(sn,Value2Int);
+        preprocessCall(sn,&Value2Int);
 			} else if (isa<ReturnInst>(i)) {
         sn->setId(5);
-        preprocessRet(sn,Value2Int);
+        preprocessRet(sn,&Value2Int);
 			} // else if (isa<GetElementPtrInst>(i)) {
         // sn->setId(6);
         // preprocessGEP(sn,Value2Int);
         // }
-      */
 		}
 	}
 }
@@ -281,20 +278,18 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	std::map<Function*, StmtList*>::iterator list_iter;
   std::vector<SEGNode*>::iterator stmt_iter;
   for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
-		Function *f = list_iter->first;
+		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			switch(/*sn->getId()*/ 0 ) {
-				/*
 				case 0: processAlloc(&TopLevelPTS,sn); break;
 				case 1: processCopy(&TopLevelPTS,sn);  break;
 				case 2: processLoad(&TopLevelPTS,sn);  break;
 				case 3: processStore(&TopLevelPTS,sn); break;
 				case 4: processCall(&TopLevelPTS,sn);  break;
 				case 5: processRet(&TopLevelPTS,sn);   break;
-				case 6: processGEP(&TopLevelPTS,sn);   break;
-				*/
+				//case 6: processGEP(&TopLevelPTS,sn);   break;
         default: assert(false && "Out of bounds Instr Type");
 			}
 		}
