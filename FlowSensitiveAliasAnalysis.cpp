@@ -282,7 +282,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
-			switch(/*sn->getId()*/ 0 ) {
+			switch(sn->getId()) {
 				case 0: processAlloc(&TopLevelPTS,sn); break;
 				case 1: processCopy(&TopLevelPTS,sn);  break;
 				case 2: processLoad(&TopLevelPTS,sn);  break;
