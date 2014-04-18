@@ -4,22 +4,6 @@
 #include "bdd.h"
 #include "fdd.h"
 
-///SEGInfo - One instance of this structure is stored for every node
-///in SEG. Useful in constructing SEG and propogating alias information.
-struct SEGInfo{
-  //std::set<User*> DefChain;//SSA guarantees all values have one definition
-  std::set<llvm::User*> userChain;
-  std::set<llvm::Value*> predecessor;
-  std::set<llvm::Value*> successor;
-  bool IsPnode;//true if the node doesn't change aa information
-  bdd in, out;
-};
-
-typedef struct SEGInfo SEGInfo;
-typedef std::map<llvm::Value*, SEGInfo*> SEGGraphTy;
-typedef std::map<llvm::Function*, SEGGraphTy*> SEGsTy;
-typedef std::set<llvm::Value*> ValueSet;
-
 void check(int rc) ;
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize);
 void pointsToFinalize();
