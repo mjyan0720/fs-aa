@@ -94,7 +94,7 @@ int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   ArgIds->push_back(sn->getId()+1); 
   sn->setArgIds(ArgIds);
   // store static bdd data
-  StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)) & fdd_ithvar(1,ArgIds->at(1)));
+  StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithvar(1,ArgIds->at(0)));
   sn->setStaticData(StaticData);
   return 0;
 }
@@ -145,6 +145,7 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
   puts("Zero");
   ArgIds->push_back(im->at(sr->getPointerOperand()));
   puts("First");
+	sr->getValueOperand()->dump();
   ArgIds->push_back(im->at(sr->getValueOperand()));
   puts("Second");
   sn->setArgIds(ArgIds);
