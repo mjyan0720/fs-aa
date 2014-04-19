@@ -29,6 +29,7 @@
 #include "SEG.h"
 #include <set>
 #include <map>
+#include <list>
 #include <algorithm>
 
 using namespace llvm;
@@ -37,10 +38,10 @@ namespace {
 
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
 private:
-	typedef std::vector<SEGNode*> StmtList;
+	typedef std::list<SEGNode*> StmtList;
 
 	/// Func2SEG - mapping from Function to corresponding SEG
-	std::map<Function*, SEG*> Func2SEG;
+	std::map<const Function*, SEG*> Func2SEG;
 
 	/// Value2Int - mapping from Value(Global Variable, Function, Local
 	/// Statement are included) to unique Id
@@ -50,7 +51,7 @@ private:
 	std::vector<Function*> FuncWorkList;
 	/// StmtWorkList - the main algorithm iterate on it.
 	/// For each function, keep a statement list to work on for it.
-	std::map<Function*, StmtList*> StmtWorkList;
+	std::map<const Function*, StmtList*> StmtWorkList;
 
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
@@ -153,10 +154,10 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
-		Function * f = &*mi;
+		const Function * f = &*mi;
 		SEG *seg = new SEG(f);
 		seg->dump();
-		Func2SEG.insert( std::pair<Function*, SEG*>(f, seg) );
+		Func2SEG.insert( std::pair<const Function*, SEG*>(f, seg) );
 	}
 }
 
@@ -184,7 +185,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		}
 	}
 	/// map local statements
-	for(std::map<Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		SEG *seg = mi->second;
 		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
 			SEGNode *sn = &*sni;
@@ -235,8 +236,8 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	// iterate through each function and each worklist
-	std::map<Function*, StmtList*>::iterator list_iter;
-	std::vector<SEGNode*>::iterator stmt_iter;
+	std::map<const Function*, StmtList*>::iterator list_iter;
+	std::list<SEGNode*>::iterator stmt_iter;
 	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
 		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
@@ -279,18 +280,19 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	TopLevelPTS = bdd_false();
 	setupAnalysis(M);
 	// iterate through each function and each worklist
-	std::map<Function*, StmtList*>::iterator list_iter;
+	std::map<const Function*, StmtList*>::iterator list_iter;
 	std::vector<SEGNode*>::iterator stmt_iter;
 	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
 		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
-		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
-			SEGNode *sn = *stmt_iter;
+		while (!stmtList->empty()) {
+			SEGNode *sn = stmtList->front();
+			stmtList->pop_front();
 			switch(sn->getType()) {
-				case 0: processAlloc(&TopLevelPTS,sn); break;
-				case 1: processCopy(&TopLevelPTS,sn);  break;
-				case 2: processLoad(&TopLevelPTS,sn);  break;
-				case 3: processStore(&TopLevelPTS,sn); break;
+				case 0: processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
+				case 1: processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
+				case 2: processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
+				case 3: processStore(&TopLevelPTS,sn,&StmtWorkList); break;
 				case 4:
 				case 5:
 				case 6: break;//do nothing for test;
@@ -318,8 +320,8 @@ static RegisterPass<FlowSensitiveAliasAnalysis> X("fs-aa", "Semi-sparse Flow Sen
 ModulePass *llvm::createFlowSensitiveAliasAnalysisPass() { return new FlowSensitiveAliasAnalysis(); }
 
 //INITIALIZE_AG_PASS_BEGIN(FlowSensitiveAliasAnalysis, AliasAnalysis,
-//			"flowsensitive-aa", "Semi-sparse Flow Sensitive Pointer Analysis",
-//			false, true, false)
+//                         "flowsensitive-aa", "Semi-sparse Flow Sensitive Pointer Analysis",
+//                         false, true, false)
 //INITIALIZE_AG_DEPENDENCY(CallGraph)
 //INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfo)
 //INITIALIZE_PASS_DEPENDENCY(LoopInfo)

@@ -118,6 +118,30 @@ std::vector<unsigned int> *pointsto(bdd b) {
 	return v;
 }
 
+void propogateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
+	std::list<SEGNode*> *wkl = swkl->at(f);
+	// if old and new are different, add all users to worklist
+	if (*oldtpts != (*oldtpts | *newpart))
+	for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
+		wkl->push_back(*i);
+	// otherwise, just update old
+	*oldtpts = *oldtpts | *newpart;
+}
+
+void propogateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
+	bdd oldink, newink;
+	std::list<SEGNode*> *wkl = swkl->at(f);
+	// add all changed successors to the worklist
+	for(SEGNode::const_succ_iterator i = sn->succ_begin(); i != sn->succ_end(); ++i) {
+		SEGNode *succ = *i;
+		// get old and new in sets 
+		oldink = succ->getInSet();
+		newink = oldink | sn->getOutSet();
+		// add if changed
+		if (oldink != newink) wkl->push_back(succ);
+	}
+}
+
 // NOTE: alloc should never have undefined arguments
 int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
@@ -191,7 +215,7 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	v = sr->getValueOperand();
 	// check if arguments are defined
 	pd = im->count(p) != 0;
-	vd = im->count(p) != 0;
+	vd = im->count(v) != 0;
 	sn->setDefined(pd & vd);
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? im->at(p) : 0);
@@ -204,15 +228,15 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int processAlloc(bdd *tpts, SEGNode *sn) {
+int processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd alloc;
 	// add pair to top-level pts
 	alloc = sn->getStaticData()->at(0);
-	*tpts = *tpts | alloc;
+	propogateTopLevel(tpts,&alloc,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
-int processCopy(bdd *tpts, SEGNode *sn) {
+int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd bddx, vs, qt, newpts;
 	// if defined, x points to quantifying over bdd + vs choices for all v values
 	if (sn->getDefined()) {
@@ -224,11 +248,11 @@ int processCopy(bdd *tpts, SEGNode *sn) {
 	// else, x points everywhere
 	else newpts = sn->getStaticData()->at(0);
 	// store new top-level points-to set
-	*tpts = *tpts | newpts;
+	propogateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
-int processLoad(bdd *tpts, SEGNode *sn) {
+int processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
 	bdd bddx, bddy, topy, ky, qt, newpts;
 	// if defined, do standard lookup
 	if (sn->getDefined()) {
@@ -243,11 +267,11 @@ int processLoad(bdd *tpts, SEGNode *sn) {
 	// else, x points everywhere
 	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
-	*tpts = *tpts | newpts;
+	propogateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
-int processStore(bdd *tpts, SEGNode *sn) {
+int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd bddx, bddy, topx, topy, outkpts;
 	// lookup where x points, get PTop(x)
 	if (sn->getArgIds()->at(0)) {
@@ -266,6 +290,7 @@ int processStore(bdd *tpts, SEGNode *sn) {
 	else outkpts = sn->getInSet();
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
+	propogateAddrTaken(sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
