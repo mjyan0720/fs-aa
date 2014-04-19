@@ -55,9 +55,21 @@ private:
 	unsigned int Id;
 
   /// Store variable Ids for arguments to this instruction
+  /// alloca:	x = Alloca i; ArgIds[0]=Idof(x)+1
+  /// copy:	x = y, z...;  ArgIds[0]=Idof(y), ArgIds[1]=Idof(z)
+  /// load:	x = load p;   ArgIds[0]=Idof(p),
+  /// store:	Store v, p;   ArgIds[0]=Idof(p), ArgIds[1]=Idof(v)
+  /// call: 
+  /// return:
   std::vector<unsigned int> *ArgIds;
 
   /// Store static BDDs computed for this instruction
+  /// alloca:	x = alloca i; StaticData[0]={x->loc(i)}
+  /// copy:	x = y, z...;  StaticData[0]={x->empty}, StaticData[1]={y|z|..->empty}, StaticData[2]={all->empty}
+  /// load:	x = load p;   StaticData[0]={x->empty}, StaticData[1]={p->empty}, StaticData[2]={all->empty}
+  /// store:	store v, p;   StaticData[0]={p->empty}, StaticData[1]={v->empty}
+  /// call:
+  /// return:
   std::vector<bdd> *StaticData;
 
   /// Type of this instruction
