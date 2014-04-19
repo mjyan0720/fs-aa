@@ -90,7 +90,6 @@ void check(int rc) {
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
 	int domain[2];
 	domain[0] = domain[1] = POINTSTO_MAX = domainsize;
-	assert(domainsize >= 0);
 	bdd_init(nodes,cachesize);
 	assert(fdd_extdomain(domain,2) >= 0);
 	LPAIR = bdd_newpair();
@@ -119,6 +118,7 @@ std::vector<unsigned int> *pointsto(bdd b) {
 	return v;
 }
 
+// NOTE: alloc should never have undefined arguments
 int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -126,7 +126,7 @@ int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	ArgIds->push_back(sn->getId()+1); 
 	sn->setArgIds(ArgIds);
 	// store static bdd data
-	StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)) & fdd_ithvar(1,ArgIds->at(1)));
+	StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithvar(1,ArgIds->at(1)));
 	sn->setStaticData(StaticData);
 	return 0;
 }
@@ -137,18 +137,24 @@ int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	bdd argset = bdd_false();
 	unsigned int id;
-	// store static argument ids
+	// store static argument data
 	for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
-		id = im->at(*oit);
+    // if argument out-of-range, store id 0
+    if (im->count(*oit) != 0) id = im->at(*oit);
+    else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
 		argset |= fdd_ithvar(0,id);
 	}
 	sn->setArgIds(ArgIds);
-	// store static bdd data
-	StaticData->push_back(fdd_ithvar(0,sn->getId()));
-	StaticData->push_back(argset);
-	StaticData->push_back(fdd_ithset(0));
+	// if arguments are defined, store data to perform relprod
+  if (sn->getDefined()) {
+	  StaticData->push_back(fdd_ithvar(0,sn->getId()));
+	  StaticData->push_back(argset);
+	  StaticData->push_back(fdd_ithset(0));
+  // otherwise, store constant (x points everywhere)
+  } else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
+  // assign data
 	sn->setStaticData(StaticData); 
 	return 0;
 }
@@ -157,13 +163,19 @@ int preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
-	// store static argument ids
-	ArgIds->push_back(im->at(ld->getPointerOperand()));
+  const Value *v = ld->getPointerOperand();
+  // check if argument is defined
+  sn->setDefined(im->count(v) != 0);
+	// store static argument id, or zero if it is out-of-range
+  ArgIds->push_back(sn->getDefined() ? im->at(v) : 0);
 	sn->setArgIds(ArgIds);
 	// store static bdd data
+  if (sn->getDefined()) {
 	StaticData->push_back(fdd_ithvar(0,sn->getId()));
 	StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
 	StaticData->push_back(fdd_ithset(0));
+  // if load argument is out-of-range, it can point anywhere
+  } else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
 	sn->setStaticData(StaticData);
 	// check validity of these guys? VALIDIDX2(x,y);
 	return 0;
@@ -173,17 +185,24 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
-	// store ids for argument values
-	ArgIds->push_back(im->at(sr->getPointerOperand()));
-	ArgIds->push_back(im->at(sr->getValueOperand()));
+  const Value *p,*v;
+  bool pd, vd;
+  p = sr->getPointerOperand();
+  v = sr->getValueOperand();
+  // check if arguments are defined
+  pd = im->count(p) != 0;
+  vd = im->count(p) != 0;
+  sn->setDefined(pd & vd);
+	// store ids for argument values, or 0 for undefined
+	ArgIds->push_back(pd ? im->at(p) : 0);
+	ArgIds->push_back(vd ? im->at(v) : 0);
 	sn->setArgIds(ArgIds);
-	// store bdds for corresponding values
-	StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
-	StaticData->push_back(fdd_ithvar(0,ArgIds->at(1)));
+	// store bdds for corresponding values, or everything for undefined
+	StaticData->push_back(pd ? fdd_ithvar(0,ArgIds->at(0)) : fdd_ithset(0));
+	StaticData->push_back(vd ? fdd_ithvar(0,ArgIds->at(1)) : fdd_ithset(1));
 	sn->setStaticData(StaticData); 
 	return 0;
 }
-
 
 int processAlloc(bdd *tpts, SEGNode *sn) {
 	bdd alloc;
@@ -194,43 +213,54 @@ int processAlloc(bdd *tpts, SEGNode *sn) {
 }
 
 int processCopy(bdd *tpts, SEGNode *sn) {
-	bdd bddx, vs, vtpts, qt;
-	// get id of variable for phi node and bdd representing set of phi arguments
-	bddx = sn->getStaticData()->at(0);
-	vs	 = sn->getStaticData()->at(1);
-	qt	 = sn->getStaticData()->at(2);
-	// quantify over original bdd + vs choices for all v values
-	vtpts = bdd_relprod(*tpts,vs,qt);
-	// extend top tpts with (x -> vtpts)
-	*tpts = *tpts | (bddx & vtpts);
+	bdd bddx, vs, qt, newpts;
+	// if defined, x points to quantifying over bdd + vs choices for all v values
+  if (sn->getDefined()) {
+		bddx = sn->getStaticData()->at(0);
+		vs   = sn->getStaticData()->at(1);
+		qt   = sn->getStaticData()->at(2);
+		newpts = bddx & bdd_relprod(*tpts,vs,qt);
+  }
+  // else, x points everywhere
+	else newpts = sn->getStaticData()->at(0);
+	// store new top-level points-to set
+	*tpts = *tpts | newpts;
 	return 0;
 }
 
 int processLoad(bdd *tpts, SEGNode *sn) {
-	bdd bddx, bddy, topy, ky, qt;
-	bddx = sn->getStaticData()->at(0);
-	bddy = sn->getStaticData()->at(1);
-	qt	 = sn->getStaticData()->at(2);
-	// get PTop(y)
-	topy = out2in(bdd_restrict(*tpts,bddy));
-	// get PK(PTop(y))
-	ky	 = bdd_relprod(sn->getInSet(),topy,qt);
+	bdd bddx, bddy, topy, ky, qt, newpts;
+	// if defined, do standard lookup
+	if (sn->getDefined()) {
+		bddx = sn->getStaticData()->at(0);
+		bddy = sn->getStaticData()->at(1);
+		qt   = sn->getStaticData()->at(2);
+		// get PTop(y)
+		topy = out2in(bdd_restrict(*tpts,bddy));
+		// get PK(PTop(y))
+		ky   = bdd_relprod(sn->getInSet(),topy,qt);
+		newpts = bddx & ky;
+	// else, x points everywhere
+	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
-	*tpts = *tpts | (bddx & ky);
+	*tpts = *tpts | newpts;
 	return 0;
 }
 
 int processStore(bdd *tpts, SEGNode *sn) {
 	bdd bddx, bddy, topx, topy, outkpts;
-	// get x and y BDDs
-	bddx = sn->getStaticData()->at(0);
-	bddy = sn->getStaticData()->at(1);
-	// get PTop(y)
-	topy = bdd_restrict(*tpts,bddy);
-	// get PTop(x)
-	topx = out2in(bdd_restrict(*tpts,bddx));
-	// if only 1 satisfying assignment then strong update
-	if (bdd_satcount(bddx & *tpts) == 1.0)
+	// lookup where x points, get PTop(x)
+	if (sn->getArgIds()->at(0)) {
+		bddx = sn->getStaticData()->at(0);
+		topx = out2in(bdd_restrict(*tpts,bddx));
+	} else topx = sn->getStaticData()->at(0);
+	// lookup where y points, get PTop(y)
+	if (sn->getArgIds()->at(1)) {
+		bddy = sn->getStaticData()->at(1);
+		topy = bdd_restrict(*tpts,bddy);
+	} else topy = sn->getStaticData()->at(1);
+	// if x points uniquely, then strong update
+	if (sn->getArgIds()->at(0) && bdd_satcount(bddx & *tpts) == 1.0)
 		outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
 	// else weak update
 	else outkpts = sn->getInSet();
