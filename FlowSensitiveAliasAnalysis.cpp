@@ -258,17 +258,16 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<StoreInst>(i)) {
 				sn->setType(3);
 				preprocessStore(sn,&Value2Int);
+			}  else if (isa<CallInst>(i)) {
+				sn->setType(4);
+				// preprocessCall(sn,&Value2Int);
+			} else if (isa<ReturnInst>(i)) {
+				sn->setType(5);
+				// preprocessRet(sn,&Value2Int);
+			}  else if (isa<GetElementPtrInst>(i)) {
+				sn->setType(6);
+				// preprocessGEP(sn,Value2Int);
 			}
-			// else if (isa<CallInst>(i)) {
-			// sn->setType(4);
-			// preprocessCall(sn,&Value2Int);
-			// } else if (isa<ReturnInst>(i)) {
-			// sn->setType(5);
-			// preprocessRet(sn,&Value2Int);
-			// }	else if (isa<GetElementPtrInst>(i)) {
-			// sn->setId(6);
-			// preprocessGEP(sn,Value2Int);
-			// }
 		}
 	}
 }
@@ -292,6 +291,9 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case 1: processCopy(&TopLevelPTS,sn);  break;
 				case 2: processLoad(&TopLevelPTS,sn);  break;
 				case 3: processStore(&TopLevelPTS,sn); break;
+				case 4:
+				case 5:
+				case 6: break;//do nothing for test;
 				//case 4: processCall(&TopLevelPTS,sn);  break;
 				//case 5: processRet(&TopLevelPTS,sn);   break;
 				//case 6: processGEP(&TopLevelPTS,sn);   break;

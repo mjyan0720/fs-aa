@@ -126,7 +126,7 @@ int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	ArgIds->push_back(sn->getId()+1); 
 	sn->setArgIds(ArgIds);
 	// store static bdd data
-	StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithvar(1,ArgIds->at(1)));
+	StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithvar(1,ArgIds->at(0)));
 	sn->setStaticData(StaticData);
 	return 0;
 }
@@ -139,22 +139,22 @@ int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	unsigned int id;
 	// store static argument data
 	for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
-    // if argument out-of-range, store id 0
-    if (im->count(*oit) != 0) id = im->at(*oit);
-    else { id = 0; sn->setDefined(false); }
+		// if argument out-of-range, store id 0
+		if (im->count(*oit) != 0) id = im->at(*oit);
+		else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
 		argset |= fdd_ithvar(0,id);
 	}
 	sn->setArgIds(ArgIds);
 	// if arguments are defined, store data to perform relprod
-  if (sn->getDefined()) {
-	  StaticData->push_back(fdd_ithvar(0,sn->getId()));
-	  StaticData->push_back(argset);
-	  StaticData->push_back(fdd_ithset(0));
-  // otherwise, store constant (x points everywhere)
-  } else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
-  // assign data
+	if (sn->getDefined()) {
+		StaticData->push_back(fdd_ithvar(0,sn->getId()));
+		StaticData->push_back(argset);
+		StaticData->push_back(fdd_ithset(0));
+	// otherwise, store constant (x points everywhere)
+	} else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
+	// assign data
 	sn->setStaticData(StaticData); 
 	return 0;
 }
@@ -163,19 +163,19 @@ int preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
-  const Value *v = ld->getPointerOperand();
-  // check if argument is defined
-  sn->setDefined(im->count(v) != 0);
+	const Value *v = ld->getPointerOperand();
+	// check if argument is defined
+	sn->setDefined(im->count(v) != 0);
 	// store static argument id, or zero if it is out-of-range
-  ArgIds->push_back(sn->getDefined() ? im->at(v) : 0);
+	ArgIds->push_back(sn->getDefined() ? im->at(v) : 0);
 	sn->setArgIds(ArgIds);
 	// store static bdd data
-  if (sn->getDefined()) {
+	if (sn->getDefined()) {
 	StaticData->push_back(fdd_ithvar(0,sn->getId()));
 	StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
 	StaticData->push_back(fdd_ithset(0));
-  // if load argument is out-of-range, it can point anywhere
-  } else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
+	// if load argument is out-of-range, it can point anywhere
+	} else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
 	sn->setStaticData(StaticData);
 	// check validity of these guys? VALIDIDX2(x,y);
 	return 0;
@@ -185,14 +185,14 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
-  const Value *p,*v;
-  bool pd, vd;
-  p = sr->getPointerOperand();
-  v = sr->getValueOperand();
-  // check if arguments are defined
-  pd = im->count(p) != 0;
-  vd = im->count(p) != 0;
-  sn->setDefined(pd & vd);
+	const Value *p,*v;
+	bool pd, vd;
+	p = sr->getPointerOperand();
+	v = sr->getValueOperand();
+	// check if arguments are defined
+	pd = im->count(p) != 0;
+	vd = im->count(p) != 0;
+	sn->setDefined(pd & vd);
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? im->at(p) : 0);
 	ArgIds->push_back(vd ? im->at(v) : 0);
@@ -215,13 +215,13 @@ int processAlloc(bdd *tpts, SEGNode *sn) {
 int processCopy(bdd *tpts, SEGNode *sn) {
 	bdd bddx, vs, qt, newpts;
 	// if defined, x points to quantifying over bdd + vs choices for all v values
-  if (sn->getDefined()) {
+	if (sn->getDefined()) {
 		bddx = sn->getStaticData()->at(0);
 		vs   = sn->getStaticData()->at(1);
 		qt   = sn->getStaticData()->at(2);
 		newpts = bddx & bdd_relprod(*tpts,vs,qt);
-  }
-  // else, x points everywhere
+	}
+	// else, x points everywhere
 	else newpts = sn->getStaticData()->at(0);
 	// store new top-level points-to set
 	*tpts = *tpts | newpts;
