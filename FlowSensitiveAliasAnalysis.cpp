@@ -54,21 +54,21 @@ private:
 
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
- 
-  /// top level points to graph
-  bdd TopLevelPTS;
+
+	/// top level points to graph
+	bdd TopLevelPTS;
 
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
 		AU.addRequired<TargetLibraryInfo>();
-		AU.addRequired<CallGraph>();	
+		AU.addRequired<CallGraph>();
 	}
 
 	/// constructSEG - construct sparse evaluation graph for each function
 	/// and insert mapping between function and corresponding seg to Func2SEG.
-	void constructSEG(Module &M);	
+	void constructSEG(Module &M);
 
-	/// initializeValueMap - give all values(global variable, function, local statement) 
+	/// initializeValueMap - give all values(global variable, function, local statement)
 	/// a unique unsigned integer, and insert into Value2Int.
 	/// Return the total number of locations used to encode bdd.
 	unsigned initializeValueMap(Module &M);
@@ -81,11 +81,11 @@ private:
 	/// initializeStmtWorkList - insert all SEGNode(statements) into StmtList
 	void initializeStmtWorkList(Function *F);
 
-  /// doAnalysis - performs actual analysis algorithm
-  void doAnalysis(Module &M);
+	/// doAnalysis - performs actual analysis algorithm
+	void doAnalysis(Module &M);
 
-  /// setupAnalysis - initializes analysis datastructures
-  void setupAnalysis(Module &M);
+	/// setupAnalysis - initializes analysis datastructures
+	void setupAnalysis(Module &M);
 
 	/// printValueMap - print out debug information of value mapping.
 	void printValueMap();
@@ -98,44 +98,44 @@ public:
 
 	virtual void initializePass() {
 		InitializeAliasAnalysis(this);
- 	}
+	}
 
 	virtual bool runOnModule(Module &M);
 
 //copy from noaa
-    virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-      return MayAlias;
-    }
+	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
+		return MayAlias;
+	}
 
-    virtual ModRefBehavior getModRefBehavior(ImmutableCallSite CS) {
-      return UnknownModRefBehavior;
-    }
-    virtual ModRefBehavior getModRefBehavior(const Function *F) {
-      return UnknownModRefBehavior;
-    }
+	virtual ModRefBehavior getModRefBehavior(ImmutableCallSite CS) {
+		return UnknownModRefBehavior;
+	}
 
-    virtual bool pointsToConstantMemory(const Location &Loc,
-                                        bool OrLocal) {
-      return false;
-    }
-    virtual ModRefResult getModRefInfo(ImmutableCallSite CS,
-                                       const Location &Loc) {
-      return ModRef;
-    }
-    virtual ModRefResult getModRefInfo(ImmutableCallSite CS1,
-                                       ImmutableCallSite CS2) {
-      return ModRef;
-    }
+	virtual ModRefBehavior getModRefBehavior(const Function *F) {
+		return UnknownModRefBehavior;
+	}
 
-    /// getAdjustedAnalysisPointer - This method is used when a pass implements
-    /// an analysis interface through multiple inheritance.  If needed, it
-    /// should override this to adjust the this pointer as needed for the
-    /// specified pass info.
-    virtual void *getAdjustedAnalysisPointer(const void *ID) {
-      if (ID == &AliasAnalysis::ID)
-        return (AliasAnalysis*)this;
-      return this;
-    }
+	virtual bool pointsToConstantMemory(const Location &Loc, bool OrLocal) {
+		return false;
+	}
+
+	virtual ModRefResult getModRefInfo(ImmutableCallSite CS, const Location &Loc) {
+		return ModRef;
+	}
+
+	virtual ModRefResult getModRefInfo(ImmutableCallSite CS1, ImmutableCallSite CS2) {
+		return ModRef;
+	}
+
+	/// getAdjustedAnalysisPointer - This method is used when a pass implements
+	/// an analysis interface through multiple inheritance.  If needed, it
+	/// should override this to adjust the this pointer as needed for the
+	/// specified pass info.
+	virtual void *getAdjustedAnalysisPointer(const void *ID) {
+		if (ID == &AliasAnalysis::ID)
+			return (AliasAnalysis*)this;
+		return this;
+	}
 //copy from noaa -- end
 
 };
@@ -147,14 +147,14 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	LocationCount = initializeValueMap(M);
 	initializeFuncWorkList(M);
 	printValueMap();
-  doAnalysis(M);
+	doAnalysis(M);
 	return false;
 }
 
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		Function * f = &*mi;
- 		SEG *seg = new SEG(f);
+		SEG *seg = new SEG(f);
 		seg->dump();
 		Func2SEG.insert( std::pair<Function*, SEG*>(f, seg) );
 	}
@@ -194,7 +194,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			// don't need to give id to store/return inst
 			// return inst doesn't create new variable
 			// Assume the variable defined by StoreInst has already been assigned an Id
-			// in previous allocaInst. Otherwise, the variable is casted from non-pointer 
+			// in previous allocaInst. Otherwise, the variable is casted from non-pointer
 			// variable, which is untractable, then treat it points everywhere.
 			if(isa<StoreInst>(inst) | isa<ReturnInst>(inst))
 				continue;
@@ -202,7 +202,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst))
 				id++;
-			assert( chk.second && "Value Id should be unique");	
+			assert( chk.second && "Value Id should be unique");
 		}
 	}
 	return id;
@@ -234,54 +234,55 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 }
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
-  // iterate through each function and each worklist
+	// iterate through each function and each worklist
 	std::map<Function*, StmtList*>::iterator list_iter;
-  std::vector<SEGNode*>::iterator stmt_iter;
-  for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
+	std::vector<SEGNode*>::iterator stmt_iter;
+	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
 		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			const Instruction *i = sn->getInstruction();
-      // set SEGNode id if not StoreInst
-      if (!isa<StoreInst>(i)) sn->setId(Value2Int[sn->getInstruction()]);
-      // set SEGNode type and perform preprocessing
+			// set SEGNode id if not StoreInst
+			if (!isa<StoreInst>(i)) sn->setId(Value2Int[sn->getInstruction()]);
+			// set SEGNode type and perform preprocessing
 			if (isa<AllocaInst>(i)) {
-        sn->setType(0);
-        preprocessAlloc(sn,&Value2Int);
+				sn->setType(0);
+				preprocessAlloc(sn,&Value2Int);
 			} else if (isa<PHINode>(i)) {
-        sn->setType(1);
-        preprocessCopy(sn,&Value2Int);
+				sn->setType(1);
+				preprocessCopy(sn,&Value2Int);
 			} else if (isa<LoadInst>(i)) {
-        sn->setType(2);
-        preprocessLoad(sn,&Value2Int);
+				sn->setType(2);
+				preprocessLoad(sn,&Value2Int);
 			} else if (isa<StoreInst>(i)) {
-        sn->setType(3);
-        preprocessStore(sn,&Value2Int);
-			} // else if (isa<CallInst>(i)) {
-        // sn->setType(4);
-        // preprocessCall(sn,&Value2Int);
-			  // } else if (isa<ReturnInst>(i)) {
-        // sn->setType(5);
-        // preprocessRet(sn,&Value2Int);
-			  // }  else if (isa<GetElementPtrInst>(i)) {
-        // sn->setId(6);
-        // preprocessGEP(sn,Value2Int);
-        // }
+				sn->setType(3);
+				preprocessStore(sn,&Value2Int);
+			}
+			// else if (isa<CallInst>(i)) {
+			// sn->setType(4);
+			// preprocessCall(sn,&Value2Int);
+			// } else if (isa<ReturnInst>(i)) {
+			// sn->setType(5);
+			// preprocessRet(sn,&Value2Int);
+			// }	else if (isa<GetElementPtrInst>(i)) {
+			// sn->setId(6);
+			// preprocessGEP(sn,Value2Int);
+			// }
 		}
 	}
 }
 
 void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
-  // do SEG initialization
-  initializeFuncWorkList(M);
-  // setup analysis
-  TopLevelPTS = bdd_false();
-  setupAnalysis(M);
-  // iterate through each function and each worklist
+	// do SEG initialization
+	initializeFuncWorkList(M);
+	// setup analysis
+	TopLevelPTS = bdd_false();
+	setupAnalysis(M);
+	// iterate through each function and each worklist
 	std::map<Function*, StmtList*>::iterator list_iter;
-  std::vector<SEGNode*>::iterator stmt_iter;
-  for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
+	std::vector<SEGNode*>::iterator stmt_iter;
+	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
 		//Function *f = list_iter->first;
 		StmtList* stmtList = list_iter->second;
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
@@ -294,7 +295,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				//case 4: processCall(&TopLevelPTS,sn);  break;
 				//case 5: processRet(&TopLevelPTS,sn);   break;
 				//case 6: processGEP(&TopLevelPTS,sn);   break;
-        default: assert(false && "Out of bounds Instr Type");
+				default: assert(false && "Out of bounds Instr Type");
 			}
 		}
 	}
@@ -310,7 +311,7 @@ void FlowSensitiveAliasAnalysis::printValueMap(){
 /// Register this pass
 char FlowSensitiveAliasAnalysis::ID = 0;
 static RegisterPass<FlowSensitiveAliasAnalysis> X("fs-aa", "Semi-sparse Flow Sensitive Pointer Analysis",
-	                  false, false);
+                                                  false, false);
 
 ModulePass *llvm::createFlowSensitiveAliasAnalysisPass() { return new FlowSensitiveAliasAnalysis(); }
 

@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===/
 
-
 #ifndef LLVM_FSAA_SEGNODE_H
 #define LLVM_FSAA_SEGNODE_H
 
@@ -49,19 +48,19 @@ private:
 	std::set<SEGNode *> Defs;
 
 	/// In and Out Points-To Sets as BDDs
-  bdd In, Out;
+	bdd In, Out;
 
 	/// Identifier of this SEGNode in the BDD
 	unsigned int Id;
 
-  /// Store variable Ids for arguments to this instruction
-  std::vector<unsigned int> *ArgIds;
+	/// Store variable Ids for arguments to this instruction
+	std::vector<unsigned int> *ArgIds;
 
-  /// Store static BDDs computed for this instruction
-  std::vector<bdd> *StaticData;
+	/// Store static BDDs computed for this instruction
+	std::vector<bdd> *StaticData;
 
-  /// Type of this instruction
-  unsigned int Type;
+	/// Type of this instruction
+	unsigned int Type;
 public:
 	SEGNode() { }
 
@@ -78,19 +77,19 @@ public:
 	bool	isnPnode() { return IsnPnode; }
 	SEG *getParent() { return Parent; }
 
-  /// Access Extra Information
-  std::vector<unsigned int> *getArgIds() { return ArgIds; }
-  unsigned int getId() { return Id; }
-  unsigned int getType() { return Type; }
-  bdd getInSet() { return In; }
-  bdd getOutSet() { return Out; }
-  std::vector<bdd> *getStaticData() { return StaticData; }
-  void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds; }
-  void setId(unsigned int Id) { this->Id = Id; }
-  void setType(unsigned int Type) { this->Type = Type; }
-  void setInSet(bdd In) { this->In = In; }
-  void setOutSet(bdd Out) { this->Out = Out; }
-  void setStaticData(std::vector<bdd> *StaticData) { this->StaticData = StaticData; }
+	/// Access Extra Information
+	std::vector<unsigned int> *getArgIds() { return ArgIds; }
+	unsigned int getId() { return Id; }
+	unsigned int getType() { return Type; }
+	bdd getInSet() { return In; }
+	bdd getOutSet() { return Out; }
+	std::vector<bdd> *getStaticData() { return StaticData; }
+	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds; }
+	void setId(unsigned int Id) { this->Id = Id; }
+	void setType(unsigned int Type) { this->Type = Type; }
+	void setInSet(bdd In) { this->In = In; }
+	void setOutSet(bdd Out) { this->Out = Out; }
+	void setStaticData(std::vector<bdd> *StaticData) { this->StaticData = StaticData; }
 
 	/// SEG-CFG iterators
 	typedef std::set<SEGNode *>::iterator	pred_iterator;
@@ -102,26 +101,26 @@ public:
 	typedef std::set<SEGNode *>::iterator	def_iterator;
 	typedef std::set<SEGNode *>::const_iterator	const_def_iterator;
 
-	pred_iterator		pred_begin()	{ return Predecessors.begin(); }
-	const_pred_iterator	pred_begin() const { return Predecessors.begin(); }
-	pred_iterator		pred_end()	{ return Predecessors.end();	}
-	const_pred_iterator 	pred_end() const { return Predecessors.end();	}
-	unsigned		pred_size() const { return (unsigned)Predecessors.size(); }
-	succ_iterator		succ_begin()	{ return Successors.begin();	}
-	const_succ_iterator	succ_begin() const { return Successors.begin(); }
-	succ_iterator		succ_end()	{ return Successors.end();	}
-	const_succ_iterator	succ_end() const { return Successors.end();	}
-	unsigned                succ_size() const { return (unsigned)Successors.size(); }
-	user_iterator		user_begin()	{ return Users.begin(); 	}
-	const_user_iterator	user_begin() const { return Users.begin();	}
-	user_iterator		user_end()	{ return Users.end();		}
-	const_user_iterator	user_end() const { return Users.end();		}
-        unsigned                user_size() const { return (unsigned)Users.size(); }
-	def_iterator		def_begin()	{ return Defs.begin(); 	}
-	const_def_iterator	def_begin() const { return Defs.begin();	}
-	def_iterator		def_end()	{ return Defs.end();		}
-	const_def_iterator	def_end() const  { return Defs.end();		}
-        unsigned                def_size() const { return (unsigned)Defs.size(); }
+	pred_iterator           pred_begin()       { return Predecessors.begin();          }
+	const_pred_iterator     pred_begin() const { return Predecessors.begin();          }
+	pred_iterator           pred_end()         { return Predecessors.end();            }
+	const_pred_iterator     pred_end() const   { return Predecessors.end();            }
+	unsigned                pred_size() const  { return (unsigned)Predecessors.size(); }
+	succ_iterator           succ_begin()       { return Successors.begin();            }
+	const_succ_iterator     succ_begin() const { return Successors.begin();            }
+	succ_iterator           succ_end()         { return Successors.end();              }
+	const_succ_iterator     succ_end() const   { return Successors.end();              }
+	unsigned                succ_size() const  { return (unsigned)Successors.size();   }
+	user_iterator           user_begin()       { return Users.begin();                 }
+	const_user_iterator     user_begin() const { return Users.begin();                 }
+	user_iterator           user_end()         { return Users.end();                   }
+	const_user_iterator     user_end() const   { return Users.end();                   }
+	unsigned                user_size() const  { return (unsigned)Users.size();        }
+	def_iterator            def_begin()        { return Defs.begin();                  }
+	const_def_iterator      def_begin() const  { return Defs.begin();                  }
+	def_iterator            def_end()          { return Defs.end();                    }
+	const_def_iterator      def_end() const    { return Defs.end();                    }	
+	unsigned                def_size() const   { return (unsigned)Defs.size();         }
 
 private:
 	/// addPredecessor - Add pred as a predecessor of this SEGNode.
@@ -193,7 +192,6 @@ public:
 
 raw_ostream& operator<<(raw_ostream &OS, const SEGNode &SN);
 
-
 //===--------------------------------------------------------------------===//
 // GraphTraits specializations for machine basic block graphs (machine-CFGs)
 //===--------------------------------------------------------------------===//
@@ -216,16 +214,16 @@ template <> struct GraphTraits<SEGNode *> {
 };
 
 template <> struct GraphTraits<const SEGNode *> {
-        typedef const SEGNode NodeType;
-        typedef SEGNode::succ_iterator ChildIteratorType;
+	typedef const SEGNode NodeType;
+	typedef SEGNode::succ_iterator ChildIteratorType;
 
-        static NodeType *getEntryNode(const SEGNode *SN) { return SN; }
-        static inline ChildIteratorType child_begin(NodeType *N) {
-                return N->succ_begin();
-        }
-        static inline ChildIteratorType child_end(NodeType *N) {
-                return N->succ_end();
-        }
+	static NodeType *getEntryNode(const SEGNode *SN) { return SN; }
+	static inline ChildIteratorType child_begin(NodeType *N) {
+		return N->succ_begin();
+	}
+	static inline ChildIteratorType child_end(NodeType *N) {
+		return N->succ_end();
+	}
 };
 
 // Provide specializations of GraphTraits to be able to treat a
@@ -235,34 +233,31 @@ template <> struct GraphTraits<const SEGNode *> {
 // instead of the successor edges.
 //
 template <> struct GraphTraits<Inverse<SEGNode*> > {
-        typedef SEGNode NodeType;
-        typedef SEGNode::pred_iterator ChildIteratorType;
+	typedef SEGNode NodeType;
+	typedef SEGNode::pred_iterator ChildIteratorType;
 
-        static NodeType *getEntryNode(Inverse<SEGNode *> G) { return G.Graph; }
-        static inline ChildIteratorType child_begin(NodeType *N) {
-                return N->pred_begin();
-        }
-        static inline ChildIteratorType child_end(NodeType *N) {
-                return N->pred_end();
-        }
-
+	static NodeType *getEntryNode(Inverse<SEGNode *> G) { return G.Graph; }
+	static inline ChildIteratorType child_begin(NodeType *N) {
+		return N->pred_begin();
+	}
+	static inline ChildIteratorType child_end(NodeType *N) {
+		return N->pred_end();
+	}
 };
 
 template <> struct GraphTraits<Inverse<const SEGNode*> > {
-        typedef const SEGNode NodeType;
-        typedef SEGNode::pred_iterator ChildIteratorType;
+	typedef const SEGNode NodeType;
+	typedef SEGNode::pred_iterator ChildIteratorType;
 
-        static NodeType *getEntryNode(Inverse<const SEGNode *> G) { return G.Graph; }
-        static inline ChildIteratorType child_begin(NodeType *N) {
-                return N->pred_begin();
-        }
-        static inline ChildIteratorType child_end(NodeType *N) {
-                return N->pred_end();
-        }
-
+	static NodeType *getEntryNode(Inverse<const SEGNode *> G) { return G.Graph; }
+	static inline ChildIteratorType child_begin(NodeType *N) {
+		return N->pred_begin();
+	}
+	static inline ChildIteratorType child_end(NodeType *N) {
+		return N->pred_end();
+	}
 };
 
 }//End llvm namespace
-
 
 #endif

@@ -32,10 +32,10 @@ SEG::SEG(const Function *fn) : Fn(fn){
 
 void SEG::dump() const {
 	dbgs()<<"SEG("<<this->size()<<")\n";
-        for(SEG::const_iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni){
+	for(SEG::const_iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni){
 		const SEGNode *sn = &*sni;
-                for(SEGNode::succ_iterator succi=sn->succ_begin(), succe=sn->succ_end(); succi!=succe; ++succi)
-                       dbgs()<<*sni<<" --> "<<**succi<<"\n";
+		for(SEGNode::succ_iterator succi=sn->succ_begin(), succe=sn->succ_end(); succi!=succe; ++succi)
+			dbgs()<<*sni<<" --> "<<**succi<<"\n";
 	}
 }
 

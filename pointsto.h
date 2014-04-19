@@ -34,4 +34,3 @@ bool updateFunEntry(unsigned int f, bdd filtk);
 std::vector<unsigned int> *funParams(unsigned int f);  
 std::vector<callsite_t> *funCallsites(unsigned int f); 
 bool assignedCall(unsigned int); 
-

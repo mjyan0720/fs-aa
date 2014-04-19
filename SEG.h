@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===/
 
-
 #ifndef LLVM_FSAA_SEG_H
 #define LLVM_FSAA_SEG_H
 #include "SEGNode.h"
@@ -47,7 +46,7 @@ public:
 
 	/// getFunction - Return LLVM Function this SEG represents for.
 	const Function *getFunction() { return Fn; }
-	bool isDeclaration()	{ return IsDeclaration; }
+	bool isDeclaration() { return IsDeclaration; }
 
 
 	SEGNode *getEntryNode() { return EntryNode; }
@@ -64,28 +63,28 @@ public:
 	typedef SEGNodeListType::const_iterator const_iterator;
 
 	/// SEGNode accessor funcions
-	iterator	begin()		{ return SEGNodes.begin(); }
-	const_iterator	begin() const	{ return SEGNodes.begin(); }
-	iterator	end()		{ return SEGNodes.end();   }
-	const_iterator	end() const	{ return SEGNodes.end();   }
+	iterator        begin()         { return SEGNodes.begin(); }
+	const_iterator	begin() const   { return SEGNodes.begin(); }
+	iterator        end()           { return SEGNodes.end();   }
+	const_iterator	end() const     { return SEGNodes.end();   }
 
-	unsigned	size() const	{ return (unsigned)SEGNodes.size(); }
-	bool		empty() const	{ return SEGNodes.empty(); }
+	unsigned        size() const    { return (unsigned)SEGNodes.size(); }
+	bool            empty() const   { return SEGNodes.empty(); }
 
-	const SEGNode	&front() const	{ return SEGNodes.front(); }
-	      SEGNode	&front()	{ return SEGNodes.front(); }
-	const SEGNode	&back() const	{ return SEGNodes.back();  }
-	      SEGNode	&back() 	{ return SEGNodes.back();  }
+	const SEGNode   &front() const  { return SEGNodes.front(); }
+	SEGNode	&front()                { return SEGNodes.front(); }
+	const SEGNode   &back() const   { return SEGNodes.back();  }
+	SEGNode	&back()                 { return SEGNodes.back();  }
 
-	void	insert(SEGNode *SN){
+	void insert(SEGNode *SN){
 		SEGNodes.push_back(SN);
 	}
 	
-	void	remove(iterator SNI){
+	void remove(iterator SNI){
 		SEGNodes.remove(SNI);
 	}
 
-	void	erase(iterator SNI){
+	void erase(iterator SNI){
 		SEGNodes.erase(SNI);
 	}
 };
@@ -99,9 +98,9 @@ template <> struct GraphTraits<SEG*> : public GraphTraits<SEGNode*> {
 	
 	//nodes_iterator/begin/end - Allow iteration over all nodes in the graph
 	typedef SEG::iterator nodes_iterator;
-	static nodes_iterator	nodes_begin(SEG *G)	{ return G->begin(); }
-	static nodes_iterator	nodes_end(SEG *G)	{ return G->end();   }
-	static unsigned 	size(SEG *G)		{ return G->size();  }
+	static nodes_iterator nodes_begin(SEG *G) { return G->begin(); }
+	static nodes_iterator nodes_end(SEG *G)	  { return G->end();   }
+	static unsigned       size(SEG *G)        { return G->size();  }
 };
 
 template <> struct GraphTraits<const SEG*> : public GraphTraits<const SEGNode*> {
@@ -109,28 +108,27 @@ template <> struct GraphTraits<const SEG*> : public GraphTraits<const SEGNode*> 
 		return &G->front();
 	}
 
-        //nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-        typedef SEG::const_iterator nodes_iterator;
-        static nodes_iterator   nodes_begin(const SEG *G)     { return G->begin(); }
-        static nodes_iterator   nodes_end(const SEG *G)       { return G->end();   }
-        static unsigned         size(const SEG *G)            { return G->size();  }
+	//nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+	typedef SEG::const_iterator nodes_iterator;
+	static nodes_iterator   nodes_begin(const SEG *G) { return G->begin(); }
+	static nodes_iterator   nodes_end(const SEG *G)   { return G->end();   }
+	static unsigned         size(const SEG *G)        { return G->size();  }
 };
 
 template <> struct GraphTraits<Inverse<SEG*> > :
 	public GraphTraits<Inverse<SEGNode*> > {
-        static NodeType *getEntryNode(Inverse<SEG *> G){
-                return &G.Graph->front();
-        }
+	static NodeType *getEntryNode(Inverse<SEG *> G){
+		return &G.Graph->front();
+	}
 };
 
 template <> struct GraphTraits<Inverse<const SEG*> > :
-        public GraphTraits<Inverse<const SEGNode*> > {
-        static NodeType *getEntryNode(Inverse<const SEG *> G){
-                return &G.Graph->front();
-        }
+	public GraphTraits<Inverse<const SEGNode*> > {
+	static NodeType *getEntryNode(Inverse<const SEG *> G){
+		return &G.Graph->front();
+	}
 };
 
 }//End llvm namespace
-
 
 #endif
