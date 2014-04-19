@@ -161,7 +161,7 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 }
 
 unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
-	unsigned id = 0;
+	unsigned id = 1;
 	std::pair<std::map<const Value*, unsigned>::iterator, bool> chk;
 	/// map global variables
 	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {

@@ -12,12 +12,41 @@
 #include "llvm/IR/Instructions.h"
 
 /*
-  Processing Instructions (Handling Undefined Values):
-    1) alloca 
-    2) copy
-    3) load
-    4) store
-    5) call
+ * Different Instructions:
+ *   Standard Instructions:
+ *     1) alloca type, num
+ *     2) copy type ([val,label])*
+ *     3) load type ptr
+ *     4) store type val, type ptr
+ *     5) call rettype (funtype) funptr(ty arg)
+ *     6) ret type val
+ *   Cast Instructions:
+ *     1) bitcast ty1 val to ty2       - interprets one type as another (both ptrs or not ptrs)
+ *     2) ptrtoint ty1 val to ty2      - converts a ptr type io int type
+ *     3) inttoptr ty1 val to ty2      - converts an int type to ptr type
+ *     4) trunc ty1 val to ty2         - truncates an int type to smaller int type
+ *     5) zext ty1 val to ty2          - zero-extends ty1 to ty2
+ *     6) sext ty1 val to ty2          - sign-extends ty1 to ty2
+ *     7) fptrunc ty1 val to ty2       - truncates a fp ty1 to ty2
+ *     8) fpext ty1 val to ty2         - extends a fp ty1 to ty2
+ *     9) fptoui ty1 val to ty2        - converts a fp value of ty1 to unsigned ty2
+ *    10) fptosi ty1 val to ty2        - converts a fp value of ty1 to signed ty2
+ *    11) uitofp ty1 val to ty2        - converts unsigned ty1 to fp ty2
+ *    12) sitofp ty1 val to ty2        - converts signed ty1 to fp ty2
+ *    13) addrspacecast ty1 val to ty2 - converts ptr ty1 to ptr ty2 in different addressspace
+ * What do we handle? How do we handle undefined values?
+ * 
+ * Simple boolean:
+ *    alloca should never be undefined
+ *    copy arguments may be undefined, if so, ret aliases everything
+ *    load ptr may be undefined, if so, ret aliases everything
+ *    ret value may be undefined
+ *
+ * Boolean vector:
+ *    store both ptrs may be undefined
+ *    call func ptr and arguments may be undefined
+ *      - each undefined argument must be processed individually
+ *
  */
 /*
  * Typing for allsat callbacks:

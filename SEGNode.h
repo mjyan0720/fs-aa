@@ -61,6 +61,9 @@ private:
 
 	/// Type of this instruction
 	unsigned int Type;
+
+  /// Definedness of instruction arguments
+  std::vector<bool> *Defined;
 public:
 	SEGNode() { }
 
@@ -78,18 +81,20 @@ public:
 	SEG *getParent() { return Parent; }
 
 	/// Access Extra Information
-	std::vector<unsigned int> *getArgIds() { return ArgIds; }
-	unsigned int getId() { return Id; }
-	unsigned int getType() { return Type; }
-	bdd getInSet() { return In; }
-	bdd getOutSet() { return Out; }
-	std::vector<bdd> *getStaticData() { return StaticData; }
-	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds; }
-	void setId(unsigned int Id) { this->Id = Id; }
-	void setType(unsigned int Type) { this->Type = Type; }
-	void setInSet(bdd In) { this->In = In; }
-	void setOutSet(bdd Out) { this->Out = Out; }
-	void setStaticData(std::vector<bdd> *StaticData) { this->StaticData = StaticData; }
+	std::vector<unsigned int> *getArgIds()            { return ArgIds;                 }
+	unsigned int getId()                              { return Id;                     }
+	unsigned int getType()                            { return Type;                   }
+  std::vector<bool> *getDefined()                   { return Defined;                }
+	bdd getInSet()                                    { return In;                     }
+	bdd getOutSet()                                   { return Out;                    }
+	std::vector<bdd> *getStaticData()                 { return StaticData;             }
+	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds;         }
+	void setId(unsigned int Id)                       { this->Id = Id;                 }
+	void setType(unsigned int Type)                   { this->Type = Type;             }
+	void setInSet(bdd In)                             { this->In = In;                 }
+	void setOutSet(bdd Out)                           { this->Out = Out;               }
+	void setStaticData(std::vector<bdd> *StaticData)  { this->StaticData = StaticData; }
+  void setDefined(std::vector<bool> *Defined)       { this->Defined = Defined;       }
 
 	/// SEG-CFG iterators
 	typedef std::set<SEGNode *>::iterator	pred_iterator;
