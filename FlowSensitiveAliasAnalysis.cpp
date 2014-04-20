@@ -183,10 +183,11 @@ public:
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	constructSEG(M);
 	LocationCount = initializeValueMap(M);
+
 	CONTEXT = &M.getContext();
 	INV_MAP = reverseMap(&Value2Int);
 	fdd_strm_hook(print_handler);
-  fdd_file_hook(file_handler);
+  	fdd_file_hook(file_handler);
 	printReverseMap(INV_MAP);
 	initializeFuncWorkList(M);
 	printValueMap();
@@ -242,6 +243,13 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			// variable, which is untractable, then treat it points everywhere.
 			if(isa<StoreInst>(inst) | isa<ReturnInst>(inst))
 				continue;
+			// If the call instruction deosn't define new variable
+			// don't assign id for it.
+			if(isa<CallInst>(inst)){
+				Value *v = inst->getOperand(0);
+				if(isa<Function>(v))
+					continue;	
+			}		
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
 			assert( chk.second && "Value Id should be unique");
 			// give the allocated location an anonymous id
