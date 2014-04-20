@@ -51,6 +51,11 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
 		}
+		if (isa<GlobalValue>(v)) {
+			std::string *name = new std::string(std::string(v->getName()) + "_VALUE");
+			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
+			assert(ret.second);
+		}
 	}
   // store everything value 
   inv->insert(std::pair<unsigned int,std::string*>(0,new std::string("everything")));
@@ -339,6 +344,10 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			}
 		}
 	}
+}
+
+void processGlobal(unsigned int id, bdd *tpts) {
+  *tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
 void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
