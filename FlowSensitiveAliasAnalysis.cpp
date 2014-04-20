@@ -34,6 +34,43 @@
 
 using namespace llvm;
 
+std::map<unsigned int,std::string*> *INV_MAP;
+LLVMContext *CONTEXT;
+
+std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m) {
+	std::pair<std::map<unsigned int,std::string*>::iterator,bool> ret;
+	std::map<unsigned int,std::string *> *inv = new std::map<unsigned int,std::string*>();
+	// build inverse map (also check map is 1-to-1)
+	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
+		const Value *v = it->first;
+		ret = inv->insert(std::pair<unsigned int,std::string*>(it->second,new std::string(it->first->getName().data())));
+		assert(ret.second);
+		// if this is an alloca inst, add name for hidden inst
+		if (isa<AllocaInst>(v)) { 
+			std::string *name = new std::string(std::string(v->getName()) + "_HEAP");
+			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
+			assert(ret.second);
+		}
+	}
+  // store everything value 
+  inv->insert(std::pair<unsigned int,std::string*>(0,new std::string("everything")));
+	return inv;
+}
+
+void print_handler(std::ostream &o, int var) {
+	o << INV_MAP->at((unsigned int)var);
+}
+
+void file_handler(FILE* f, int var) {
+  fprintf(f,"%s",INV_MAP->at((unsigned int)var)->c_str());
+}
+
+void printReverseMap(std::map<unsigned int,std::string*> *m) {
+	for (std::map<unsigned int,std::string*>::iterator it = m->begin(); it != m->end(); ++it) {
+		std::cout << it->first << " : " << *(it->second) << std::endl;
+	}
+}
+
 namespace {
 
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
@@ -146,8 +183,14 @@ public:
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	constructSEG(M);
 	LocationCount = initializeValueMap(M);
+	CONTEXT = &M.getContext();
+	INV_MAP = reverseMap(&Value2Int);
+	fdd_strm_hook(print_handler);
+  fdd_file_hook(file_handler);
+	printReverseMap(INV_MAP);
 	initializeFuncWorkList(M);
 	printValueMap();
+	pointsToInit(1000,10000,LocationCount);
 	doAnalysis(M);
 	return false;
 }
@@ -200,10 +243,9 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			if(isa<StoreInst>(inst) | isa<ReturnInst>(inst))
 				continue;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
-			// give the allocated location an anonymous id
-			if(isa<AllocaInst>(inst))
-				id++;
 			assert( chk.second && "Value Id should be unique");
+			// give the allocated location an anonymous id
+			if(isa<AllocaInst>(inst)) id++;
 		}
 	}
 	return id;
@@ -303,6 +345,9 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 		}
 	}
+
+  fdd_printset(TopLevelPTS);
+  std::cout << std::endl;
 }
 
 void FlowSensitiveAliasAnalysis::printValueMap(){
