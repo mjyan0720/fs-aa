@@ -123,6 +123,19 @@ void SEGNode::dump() const {
 		dbgs()<<"  \n";
 	else
 		Inst->dump();
+
+	//printout predecessor
+	dbgs()<<"Predecessor("<<Predecessors.size()<<"):\n";
+	for(pred_iterator pi=Predecessors.begin(), pe=Predecessors.end(); pi!=pe; ++pi){
+		SEGNode *sn = *pi;
+		dbgs()<<*sn<<"\n";
+	}
+
+	dbgs()<<"Successors("<<Successors.size()<<"):\n";
+	for(succ_iterator si=Successors.begin(), se=Successors.end(); si!=se; ++si){
+		SEGNode *sn = *si;
+		dbgs()<<*sn<<"\n";
+	}
 }
 
 raw_ostream &llvm::operator<<(raw_ostream &OS, const SEGNode &SN) {

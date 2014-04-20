@@ -124,20 +124,22 @@ void SEG::applyTransformation(){
 	while( change==true && !WorkList.empty()){
 		change = false;
 		//applyT2
-		for(std::set<SEGNode*>::iterator wli=WorkList.begin(), wle=WorkList.end(); wli!=wle; ++wli){
+		for(std::set<SEGNode*>::iterator wli=WorkList.begin(), wle=WorkList.end(); wli!=wle; ){
 			SEGNode *sn = *wli;
-			//remove self-loop
+			++wli;//remove self-loopi
 			SEGNode::succ_iterator I = std::find(sn->succ_begin(), sn->succ_end(), sn);
 			if(I!=sn->succ_end()){
 				sn->removeSuccessor(sn);
 			}
 			if(sn->pred_size()==1){
-				DEBUG(errs()<<"Apply T2 : "<<*sn<<"\n");
+				DEBUG(errs()<<"Apply T2 : ");
+				sn->dump();
 				SEGNode *pred = *(sn->pred_begin());
 				pred->transferSuccessor(sn);
 				pred->removeSuccessor(sn);
 				sn->eraseFromParent();
 				change = true;
+				WorkList.erase(sn);
 			}
 		}
 		//applyT4
