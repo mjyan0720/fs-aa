@@ -67,7 +67,7 @@ void file_handler(FILE* f, int var) {
 
 void printReverseMap(std::map<unsigned int,std::string*> *m) {
 	for (std::map<unsigned int,std::string*>::iterator it = m->begin(); it != m->end(); ++it) {
-		std::cout << it->first << " : " << *(it->second) << std::endl;
+		DEBUG(std::cout << it->first << " : " << *(it->second) << std::endl);
 	}
 }
 
@@ -85,7 +85,7 @@ private:
 	std::map<const Value*, unsigned> Value2Int;
 
 	/// FuncWorkList - Functions need to be processed
-	std::vector<Function*> FuncWorkList;
+	std::list<Function*> FuncWorkList;
 	/// StmtWorkList - the main algorithm iterate on it.
 	/// For each function, keep a statement list to work on for it.
 	std::map<const Function*, StmtList*> StmtWorkList;
@@ -183,15 +183,18 @@ public:
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	constructSEG(M);
 	LocationCount = initializeValueMap(M);
+	printValueMap();
 
 	CONTEXT = &M.getContext();
 	INV_MAP = reverseMap(&Value2Int);
 	fdd_strm_hook(print_handler);
   	fdd_file_hook(file_handler);
 	printReverseMap(INV_MAP);
-	initializeFuncWorkList(M);
-	printValueMap();
+	
 	pointsToInit(1000,10000,LocationCount);
+
+	initializeFuncWorkList(M);
+	
 	doAnalysis(M);
 	return false;
 }
@@ -297,6 +300,7 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			// set SEGNode id if not StoreInst
 			if (!isa<StoreInst>(i)) sn->setId(Value2Int[sn->getInstruction()]);
 			// set SEGNode type and perform preprocessing
+			// FIXME: type is not needed in SEGNode 
 			if (isa<AllocaInst>(i)) {
 				sn->setType(0);
 				preprocessAlloc(sn,&Value2Int);
@@ -324,28 +328,32 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 }
 
 void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
-	// do SEG initialization
-	initializeFuncWorkList(M);
+
 	// setup analysis
 	TopLevelPTS = bdd_false();
 	setupAnalysis(M);
+
 	// iterate through each function and each worklist
-	std::map<const Function*, StmtList*>::iterator list_iter;
-	std::vector<SEGNode*>::iterator stmt_iter;
-	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
-		//Function *f = list_iter->first;
-		StmtList* stmtList = list_iter->second;
+	while(!FuncWorkList.empty()){
+		Function *f = FuncWorkList.front();
+		FuncWorkList.pop_front();
+		StmtList *stmtList = StmtWorkList.find(f)->second;
 		while (!stmtList->empty()) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
-			switch(sn->getType()) {
-				case 0: processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
-				case 1: processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
-				case 2: processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
-				case 3: processStore(&TopLevelPTS,sn,&StmtWorkList); break;
-				case 4:
-				case 5:
-				case 6: break;//do nothing for test;
+		
+			dbgs()<<"Processing"<<sn->getType()<<":\t"<<*sn<<"\n";
+			DEBUG(fdd_printset(TopLevelPTS));
+			DEBUG(std::cout<<std::endl);
+
+			switch(sn->getInstruction()->getOpcode()) {
+				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
+				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
+				case Instruction::Load:		processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
+				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
+				case Instruction::Call:
+				case Instruction::Ret:
+				case Instruction::GetElementPtr:break;//do nothing for test;
 				//case 4: processCall(&TopLevelPTS,sn);  break;
 				//case 5: processRet(&TopLevelPTS,sn);   break;
 				//case 6: processGEP(&TopLevelPTS,sn);   break;
@@ -353,10 +361,11 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 		}
 	}
-
-  fdd_printset(TopLevelPTS);
-  std::cout << std::endl;
+//	fdd_printset(TopLevelPTS);
+	DEBUG(std::cout<<std::endl);
 }
+
+
 
 void FlowSensitiveAliasAnalysis::printValueMap(){
 	dbgs()<<"ValueMap : \n";
