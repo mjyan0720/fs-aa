@@ -216,6 +216,8 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		const GlobalVariable *v = &*mi;
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(v, id++) );
+		// each global variable is a pointer, assign another id for what it points to
+		id ++;
 		assert( chk.second && "Value Id should be unique");
 	}
 	/// map functions
@@ -347,6 +349,12 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	TopLevelPTS = bdd_false();
 	setupAnalysis(M);
 
+	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
+		GlobalVariable *v = &*mi;
+		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
+		processGlobal(Value2Int.at(v), &TopLevelPTS);
+	}
+
 	// iterate through each function and each worklist
 	while(!FuncWorkList.empty()){
 		Function *f = FuncWorkList.front();
@@ -358,7 +366,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		
 			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
 			//DEBUG(fdd_printset(TopLevelPTS));
-      DEBUG(printBDD(TopLevelPTS));
+			DEBUG(printBDD(TopLevelPTS));
 			DEBUG(std::cout<<std::endl);
 
 			switch(sn->getInstruction()->getOpcode()) {
