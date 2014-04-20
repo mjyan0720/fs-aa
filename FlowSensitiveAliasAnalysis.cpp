@@ -128,6 +128,9 @@ private:
 	/// printValueMap - print out debug information of value mapping.
 	void printValueMap();
 
+  /// printBDD
+  void printBDD(bdd b);
+
 public:
 	static char ID;
 	FlowSensitiveAliasAnalysis() : ModulePass(ID){
@@ -187,8 +190,6 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 
 	CONTEXT = &M.getContext();
 	INV_MAP = reverseMap(&Value2Int);
-	fdd_strm_hook(print_handler);
-  	fdd_file_hook(file_handler);
 	printReverseMap(INV_MAP);
 	
 	pointsToInit(1000,10000,LocationCount);
@@ -287,6 +288,19 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
 }
 
+void FlowSensitiveAliasAnalysis::printBDD(bdd b) {
+	unsigned int i, j;
+	for (i=0;i<LocationCount;++i) {
+		for (j=0;j<LocationCount;++j) {
+			if (bdd_restrict(b,(fdd_ithvar(0,i) & fdd_ithvar(1,j))) != bdd_false())
+			//if (bdd_satcount(b & (fdd_ithvar(0,i) & fdd_ithvar(1,j))) > 0.0) 
+				dbgs() << *((*INV_MAP)[i]) << " -> " << *((*INV_MAP)[j]) << "\n";
+			//else
+			//	dbgs() << "None\n";
+		}
+	}
+}
+
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	// iterate through each function and each worklist
 	std::map<const Function*, StmtList*>::iterator list_iter;
@@ -342,8 +356,9 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 		
-			dbgs()<<"Processing"<<sn->getType()<<":\t"<<*sn<<"\n";
-			DEBUG(fdd_printset(TopLevelPTS));
+			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
+			//DEBUG(fdd_printset(TopLevelPTS));
+      DEBUG(printBDD(TopLevelPTS));
 			DEBUG(std::cout<<std::endl);
 
 			switch(sn->getInstruction()->getOpcode()) {
