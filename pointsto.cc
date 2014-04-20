@@ -78,15 +78,6 @@ static bddPair* RPAIR                 = NULL;
 #define restrictIn(b,i)  bdd_restrict(b,fdd_ithvar(0,i))
 #define restrictOut(b,i) bdd_restrict(b,fdd_ithvar(1,i))
 
-void check(int rc) {
-	if (rc < 0) {
-		puts(bdd_errstring(rc));
-		exit(1);
-	} else {
-		printf("Value: %d\n",rc);
-	}
-}
-
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
 	int domain[2];
 	domain[0] = domain[1] = POINTSTO_MAX = domainsize;
@@ -94,8 +85,8 @@ void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domai
 	assert(fdd_extdomain(domain,2) >= 0);
 	LPAIR = bdd_newpair();
 	RPAIR = bdd_newpair();
-	check(fdd_setpair(LPAIR,1,0));
-	check(fdd_setpair(RPAIR,0,1));
+  assert(fdd_setpair(LPAIR,1,0) >= 0);
+	assert(fdd_setpair(RPAIR,0,1) >= 0);
 }
 
 void pointsToFinalize() {
