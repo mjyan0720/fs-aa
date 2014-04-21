@@ -24,12 +24,14 @@ using namespace llvm;
 
 SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	IsnPnode = false;
+	Defined = true;
 }
 
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
 	IsnPnode = isa<AllocaInst>(inst) | isa<PHINode>(inst)  | isa<LoadInst>(inst) |
 			isa<StoreInst>(inst)  | isa<CallInst>(inst) | isa<ReturnInst>(inst) |
 			isa<GetElementPtrInst>(inst);
+	Defined = true;
 }
 
 SEGNode::~SEGNode() {

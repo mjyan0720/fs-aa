@@ -14,7 +14,7 @@ Ifelse:
 	br label %end
 end:
 	%A3 = phi i32** [%A1, %Ifthen], [%A2, %Ifelse]
-;	store i32* @C, i32** %A3
+	store i32* @C, i32** %A3
 	%A4 = load i32** %A3
         ret i32 0
 }
@@ -29,3 +29,4 @@ end:
 ;A3 -> A2_HEAP
 ;A4 -> A_VALUE
 ;A4 -> B_VALUE
+;A4 -> C_VALUE

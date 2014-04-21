@@ -167,14 +167,18 @@ int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	unsigned int id;
 	// store static argument data
 	for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
-		// if argument out-of-range, store id 0
-		if (im->count(*oit) != 0) id = im->at(*oit);
-		else { id = 0; sn->setDefined(false); }
+		// if argument out-of-range, store id 0i
+		Value *v = oit->get();
+		//v->dump();
+		if (im->count(v) != 0){
+			id = im->at(v);
+		} else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
 		argset |= fdd_ithvar(0,id);
 	}
 	sn->setArgIds(ArgIds);
+
 	// if arguments are defined, store data to perform relprod
 	if (sn->getDefined()) {
 		StaticData->push_back(fdd_ithvar(0,sn->getId()));
@@ -253,8 +257,13 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 		newpts = bddx & bdd_relprod(*tpts,vs,qt);
 	}
 	// else, x points everywhere
-	else newpts = sn->getStaticData()->at(0);
-	// store new top-level points-to set
+	else
+		newpts = sn->getStaticData()->at(0);
+	if(newpts == bdd_false())
+		llvm::dbgs()<<"empty copy result\n";
+	else
+		llvm::dbgs()<<"not empty\n";
+// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
