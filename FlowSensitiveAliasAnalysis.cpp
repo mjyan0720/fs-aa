@@ -50,9 +50,12 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			std::string *name = new std::string(std::string(v->getName()) + "_HEAP");
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
-		}
-		if (isa<GlobalVariable>(v)) {
+		} else if (isa<GlobalVariable>(v)) {
 			std::string *name = new std::string(std::string(v->getName()) + "_VALUE");
+			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
+			assert(ret.second);
+		} else if (isa<Function>(v)) {
+			std::string *name = new std::string(std::string(v->getName()) + "_FUNCTION");
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
 		}
@@ -72,7 +75,7 @@ void file_handler(FILE* f, int var) {
 
 void printReverseMap(std::map<unsigned int,std::string*> *m) {
 	for (std::map<unsigned int,std::string*>::iterator it = m->begin(); it != m->end(); ++it) {
-		DEBUG(std::cout << it->first << " : " << *(it->second) << std::endl);
+		dbgs() << it->first << " : " << *(it->second) << "\n";
 	}
 }
 
@@ -255,7 +258,9 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	/// map functions
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		const Function *f = &*mi;
+		/// extra id for each function
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(f, id++) );
+		id++;
 		assert( chk.second && "Value Id should be unique");
 		/// map arguments
 		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
@@ -399,12 +404,12 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		while (!stmtList->empty()) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
-		
-			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
-			//DEBUG(fdd_printset(TopLevelPTS));
+	
 			DEBUG(printBDD(TopLevelPTS));
 			DEBUG(std::cout<<std::endl);
-
+	
+			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
+			//DEBUG(fdd_printset(TopLevelPTS));
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
@@ -420,7 +425,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 		}
 	}
-//	fdd_printset(TopLevelPTS);
+	DEBUG(printBDD(TopLevelPTS));
 	DEBUG(std::cout<<std::endl);
 }
 
