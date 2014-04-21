@@ -1,0 +1,142 @@
+C++ BDD Psuedocode:
+
+/*
+ *  BuDDy Usage Notes:
+ *
+ *  1) Standard BDD and FDD variables are stored separately
+ *
+ *  General Points:
+ *    1) How many variables are there? Should be some kind of check
+ *       everywhere that we don't ask for a non-existent variable.
+ *    2) Note that top-level and address-taken variables can point
+ *       to each other in some instances; SHOULD clarify when these
+ *       instances can occur
+ *    3) We stay in pure LLVM; that means we don't care about
+ *       address taken variables and just follow the rules he gives
+ *    4) What do we initialize our PG for top-level variables and
+ *       the OUT sets to? Seems both should be initially empty.
+ *    5) LLVM Alias Analysis uses location(address,size) pairs to
+ *       do alias analysis
+ *    6) Special Cases That are Hard:
+ *      i) function pointers
+ *      ii) structs (with fields)
+ *      iii) arrays (constant or variable indices)
+ *
+ *  Important Structures:
+ *    1) PointsToSet - for points-to sets
+ *    2) VarNameSet  - sets of variable names
+ *    3) VarSet      - BDDs for variable sets
+ *    4) VarEnv      - maps variable names to their BDD values
+ *
+ *  ProgEnv Functions:
+ *    1) GetVars(VarEnv*, VarNameSet *) -> VarSet*
+ *       Usage: given a program environment and variable ids
+ *         i) check each variable name is valid
+ *         ii) create a VarSet which contains all specified vars
+ *
+ *  PointsToSet Functions:
+ *    1) PointsTo(PointsToSet *pts, VarSet *vs) -> VarSet*
+ *       Usage: return the union of all variables pointed to
+ *       by each variable in vs
+ *       Implementation:
+ *         (single case) 
+ *           use restrict to pick out the variable v,
+ *           then all_sat to find all variables v is mapped to
+ *         (set case)
+ *           TBD
+ *    2) MakePointsToSet(VarSet *vs1, VarSet *vs2) -> PointsToSet*
+ *       Usage: create a points to set where every variable in vs1
+ *       points to every variable in vs2
+ *       Implementation: TBD
+ *    3) PointsToSetUnion(PointsToSet *ps1,PointsToSet *ps2) -> PointsToSet*
+ *       Usage: returns ps1 union ps2
+ *       Implementation: bdd apply or
+ *    4) PointsToSetMinus(PointsToSet *ps1,PointsToSet *ps2) -> PointsToSet*
+ *       Usage: ps1 - ps2 (set difference)
+ *       Implementation: bdd apply difference
+ *    5) PointsToSetFilter(PointsToSet *ps1, VarSet *vs) -> PointsToSet*
+ *       Usage: removes pairs (a,b) from set where a is not in vs
+ *       Implementation: TBD
+ *
+ *  LLVM Interface function:
+ *    1) GetName(Value*) -> VarNameSet*
+ *       Usage: given an LLVM value, get it's name we use
+ *       Implementation: TBD
+ *       NOTES: GEPs are hard to handle (for structs, constant
+ *       indices, may be possible, but forget variable indices)
+ *       NOTES: size information may be helpful in the case of
+ *       GEPs and arrays where could actually check if two things
+ *       overlapped
+ */
+
+LLVM Alias Analysis Notes:
+
+- LLVM provides built-ins to get the location
+  from instructions that can access memory locations
+- Note that Values may be the result of an instruction
+  which in turn depends on other instructions recursively
+- Thus, given some LLVM Location (with underlying Value)
+  there is no way to guarantee that it aliases something
+- We need to make sure that we return conservative results
+  for cases that we don't use
+  - make sure that we handle scalars
+  - for pointer types, just query the underlying BDD to
+    see whether it aliases
+    TODO: Figure out how pointers in LLVM work exactly
+    TODO: Convert pointer values into BDDs
+
+LLVM Alias Analysis Common Instructions
+(they grab the thing pointed to by the instruction):
+
+Location getLocation(const LoadInst *LI);
+Location getLocation(const StoreInst *SI);
+Location getLocation(const VAArgInst *VI);
+Location getLocation(const AtomicCmpXchgInst *CXI);
+Location getLocation(const AtomicRMWInst *RMWI);
+static Location getLocationForSource(const MemTransferInst *MTI);
+static Location getLocationForDest(const MemIntrinsic *MI);
+ 
+LLVM Pointer Aliasing Information:
+
+Any memory access must be done through a pointer value associated
+with an address range of the memory access, otherwise the behavior
+is undefined. Pointer values are associated with address ranges
+according to the following rules:
+
+  - A pointer value is associated with the addresses associated
+    with any value it is based on.
+  - An address of a global variable is associated with the address
+    range of the variable’s storage.
+  - The result value of an allocation instruction is associated
+    with the address range of the allocated storage.
+  - A null pointer in the default address-space is associated with
+    no address.
+  - An integer constant other than zero or a pointer value returned
+    from a function not defined within LLVM may be associated with
+    address ranges allocated through mechanisms other than those
+    provided by LLVM. Such ranges shall not overlap with any ranges
+    of addresses allocated by mechanisms provided by LLVM.
+
+A pointer value is based on another pointer value according to the
+following rules:
+
+  - A pointer value formed from a getelementptr operation is based
+    on the first operand of the getelementptr.
+  - The result value of a bitcast is based on the operand of the bitcast.
+  - A pointer value formed by an inttoptr is based on all pointer values
+    that contribute (directly or indirectly) to the computation of the
+    pointer’s value.
+  - The "based on" relationship is transitive.
+
+Note that this definition of "based" is intentionally similar to the
+definition of "based" in C99, though slightly weaker.
+
+LLVM IR does not associate types with memory. The result type of a load
+merely indicates the size and alignment of the memory from which to load,
+as well as the interpretation of the value. The first operand type of a
+store similarly only indicates the size and alignment of the store.
+
+Consequently, type-based alias analysis, aka TBAA, aka -fstrict-aliasing,
+is not applicable to general unadorned LLVM IR. Metadata may be used to
+encode additional information which specialized optimization passes may use
+to implement type-based alias analysis.
