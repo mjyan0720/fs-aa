@@ -51,7 +51,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
 		}
-		if (isa<GlobalValue>(v)) {
+		if (isa<GlobalVariable>(v)) {
 			std::string *name = new std::string(std::string(v->getName()) + "_VALUE");
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
@@ -372,12 +372,12 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		while (!stmtList->empty()) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
-		
-			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
-			//DEBUG(fdd_printset(TopLevelPTS));
+	
 			DEBUG(printBDD(TopLevelPTS));
 			DEBUG(std::cout<<std::endl);
-
+	
+			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
+			//DEBUG(fdd_printset(TopLevelPTS));
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
@@ -393,7 +393,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 		}
 	}
-//	fdd_printset(TopLevelPTS);
+	DEBUG(printBDD(TopLevelPTS));
 	DEBUG(std::cout<<std::endl);
 }
 

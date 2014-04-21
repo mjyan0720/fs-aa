@@ -31,11 +31,11 @@ int processStore(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl);
 int processCall(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl);
 int processRet(bdd *tpts,   llvm::SEGNode *sn, WorkList* swkl);
 
-void propogateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
-void propogateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
+void propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
+void propagateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
 
-void propogateTopLevel(unsigned int f, unsigned int k);
-void propogateAddrTaken(unsigned int f, unsigned int k); 
+void propagateTopLevel(unsigned int f, unsigned int k);
+void propagateAddrTaken(unsigned int f, unsigned int k); 
 typedef std::pair<unsigned int, unsigned int> callsite_t;
 void updateWorklist1(unsigned int f,bool changed);
 bool updateFunEntry(unsigned int f, bdd filtk);  

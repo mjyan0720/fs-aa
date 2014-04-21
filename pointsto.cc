@@ -1,3 +1,5 @@
+#define DEBUG_TYPE "flowsensitive-aa"
+#include "llvm/Support/Debug.h"
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -109,17 +111,22 @@ std::vector<unsigned int> *pointsto(bdd b) {
 	return v;
 }
 
-void propogateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
+void propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	// if old and new are different, add all users to worklist
-	if (*oldtpts != (*oldtpts | *newpart))
-	for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
-		wkl->push_back(*i);
+	if (*oldtpts != (*oldtpts | *newpart)){
+		dbgs()<<"propagate for:\t"<<*sn<<"\n";
+		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i){
+			std::list<SEGNode*>::iterator I = std::find(wkl->begin(), wkl->end(), *i);
+			if(I==wkl->end())
+				wkl->push_back(*i);
+		}
+	}
 	// otherwise, just update old
 	*oldtpts = *oldtpts | *newpart;
 }
 
-void propogateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
+void propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 	bdd oldink, newink;
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	// add all changed successors to the worklist
@@ -129,7 +136,13 @@ void propogateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 		oldink = succ->getInSet();
 		newink = oldink | sn->getOutSet();
 		// add if changed
-		if (oldink != newink) wkl->push_back(succ);
+		if (oldink != newink){
+			dbgs()<<"propagate for:\t"<<*sn<<"\n";
+			std::list<SEGNode*>::iterator I = std::find(wkl->begin(), wkl->end(), *i);
+			if(I==wkl->end())
+				wkl->push_back(succ);
+			succ->setInSet(newink);
+		}
 	}
 }
 
@@ -208,6 +221,9 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	pd = im->count(p) != 0;
 	vd = im->count(v) != 0;
 	sn->setDefined(pd & vd);
+	
+	sn->dump();
+	dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n";
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? im->at(p) : 0);
 	ArgIds->push_back(vd ? im->at(v) : 0);
@@ -223,7 +239,7 @@ int processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd alloc;
 	// add pair to top-level pts
 	alloc = sn->getStaticData()->at(0);
-	propogateTopLevel(tpts,&alloc,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&alloc,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -239,7 +255,7 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	// else, x points everywhere
 	else newpts = sn->getStaticData()->at(0);
 	// store new top-level points-to set
-	propogateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -258,7 +274,7 @@ int processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
 	// else, x points everywhere
 	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
-	propogateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -281,7 +297,7 @@ int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	else outkpts = sn->getInSet();
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
-	propogateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -330,14 +346,14 @@ bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f
 			VALIDIDX1(*pit);
 			// update parameter to point where argument points to
 			tpts = tpts | (fdd_ithvar(0,*pit) & *ait);
-			// propogate top level edges
-			propogateTopLevel(*fit,*pit);
+			// propagate top level edges
+			propagateTopLevel(*fit,*pit);
 		}
 		// update worklists and function entry node
 		updateWorklist1(*fit,updateFunEntry(*fit,filtk));
 	}
 	// propogate address taken TODO: fix f and k
-	propogateAddrTaken(0,0);
+	propagateAddrTaken(0,0);
 	// update outset TODO: store it
 	outkpts = outkpts | (inkpts - filtk);
 	return tpts;
@@ -352,11 +368,11 @@ unsigned int processRet(unsigned int f, unsigned int k, bdd tpts, unsigned int x
 	for (cit = callsites->begin(); cit != callsites->end(); ++cit) {
 		// TODO: get ref to SEG node for each callsite
 		// propogate AddrTaken
-		propogateAddrTaken(cit->first,cit->second);
+		propagateAddrTaken(cit->first,cit->second);
 		// if this call is an assignment: r = f( ... )
 		if (assignedCall(cit->second)) {
 			// tpts = tpts | (fdd_ithvar(0,r) & restrictIn(tpts,x));
-			propogateTopLevel(cit->first,cit->second);
+			propagateTopLevel(cit->first,cit->second);
 		}
 		// if statement worklist changed TODO: finish this
 		// if (statementWorklistChanged(cit->first())) {
