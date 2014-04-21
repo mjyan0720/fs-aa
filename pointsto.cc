@@ -115,7 +115,7 @@ void propogateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, 
 	if (*oldtpts != (*oldtpts | *newpart))
 	for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
 		wkl->push_back(*i);
-	// otherwise, just update old
+	// finally update old
 	*oldtpts = *oldtpts | *newpart;
 }
 

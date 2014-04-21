@@ -51,7 +51,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
 		}
-		if (isa<GlobalValue>(v)) {
+		if (isa<GlobalVariable>(v)) {
 			std::string *name = new std::string(std::string(v->getName()) + "_VALUE");
 			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
 			assert(ret.second);
@@ -149,8 +149,35 @@ public:
 	virtual bool runOnModule(Module &M);
 
 //copy from noaa
+
+	bool pointsTo(unsigned int v1, unsigned int v2) {
+		assert(v1 <= LocationCount && v2 <= LocationCount);
+		return (TopLevelPTS & fdd_ithvar(0,v1) & fdd_ithvar(1,v2)) != bdd_false();
+	}
+
+	AliasResult aliasCheck(unsigned int v1, unsigned int v2) {
+		assert(v1 <= LocationCount && v2 <= LocationCount);
+		bdd test = bdd_restrict(TopLevelPTS,fdd_ithvar(0,v1)) & bdd_restrict(TopLevelPTS,fdd_ithvar(0,v2));
+		if (test != bdd_false()) {
+			if (bdd_satcount(test) == 1.0) return MustAlias;
+			else return MayAlias;
+		} else return NoAlias;
+	}
+
 	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-		return MayAlias;
+	  std::map<const Value*, unsigned>::iterator ret1, ret2;
+		const Value *v1, *v2;
+		unsigned int l1, l2;
+		v1 = LocA.Ptr;
+		v2 = LocB.Ptr;
+		ret1 = Value2Int.find(v1);
+		ret2 = Value2Int.find(v2);
+		l1 = ret1 == Value2Int.end() ? 0 : ret1->second;
+		l2 = ret2 == Value2Int.end() ? 0 : ret2->second;	
+		if (l1 == 0 && l2 == 0) return NoAlias;
+		else if (l1 != 0 && pointsTo(l1,0)) return MayAlias;
+		else if (l2 != 0 && pointsTo(l2,0)) return MayAlias;
+		else return aliasCheck(l1,l2);
 	}
 
 	virtual ModRefBehavior getModRefBehavior(ImmutableCallSite CS) {
