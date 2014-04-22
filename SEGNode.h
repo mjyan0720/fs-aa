@@ -27,6 +27,7 @@ namespace llvm {
 
 class SEGNode;
 class SEG;
+class ExtraData;
 
 class SEGNode : public ilist_node<SEGNode>{
 private:
@@ -80,8 +81,11 @@ private:
 
   /// Bool to record whether all arguments are defined or not
   bool Defined;
+
+	/// ExtraData - field stores extradata for instructions that need it
+	ExtraData *Extra;
 public:
-	SEGNode() { Defined = true; }
+	SEGNode() { Defined = true; Extra = NULL; }
 
 	explicit SEGNode(SEG *parent);
 
@@ -105,6 +109,7 @@ public:
 	bdd getOutSet()                                   { return Out;                    }
 	std::vector<bdd> *getStaticData()                 { return StaticData;             }
   bool getDefined()                                 { return Defined;                }
+	ExtraData *getExtraData()                         { return Extra;                  }
 	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds;         }
 	void setId(unsigned int Id)                       { this->Id = Id;                 }
 	void setType(unsigned int Type)                   { this->Type = Type;             }
@@ -112,6 +117,7 @@ public:
 	void setOutSet(bdd Out)                           { this->Out = Out;               }
 	void setStaticData(std::vector<bdd> *StaticData)  { this->StaticData = StaticData; }
   void setDefined(bool Defined)                     { this->Defined = Defined;       }
+	void setExtraData(ExtraData* Extra)               { this->Extra = Extra;           }
 
 	/// SEG-CFG iterators
 	typedef std::set<SEGNode *>::iterator	pred_iterator;

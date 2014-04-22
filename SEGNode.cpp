@@ -26,6 +26,7 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	IsnPnode = false;
 	Defined = true;
 	AddrTaken = true;
+	Extra = NULL;
 }
 
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
@@ -35,7 +36,7 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 	Defined = true;
 	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) | 
 		    isa<ReturnInst>(inst) | isa<InvokeInst>(inst);
-
+	Extra = NULL;
 }
 
 SEGNode::~SEGNode() {
