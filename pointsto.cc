@@ -14,6 +14,12 @@
 #include "llvm/IR/Instructions.h"
 
 /*
+ * TODO: over the course of evaluation, we may discover that a node
+ *       points to 0 (i.e. everything); in this case, we should
+ *       never process it again, and default to some simpler case
+ */
+
+/*
  * Different Instructions:
  *   Standard Instructions:
  *     1) alloca type, num
@@ -111,16 +117,22 @@ std::vector<unsigned int> *pointsto(bdd b) {
 	return v;
 }
 
+// append node to list if not present, return true if append occurred
+template <class T>
+bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
+	typename std::list<T>::iterator i = std::find(wkl->begin(), wkl->end(), elt);
+	if (i == wkl->end()) wkl->push_back(elt);
+	return i == wkl->end();
+}
+
 void propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != (*oldtpts | *newpart)){
 		dbgs()<<"propagate for:\t"<<*sn<<"\n";
-		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i){
-			std::list<SEGNode*>::iterator I = std::find(wkl->begin(), wkl->end(), *i);
-			if(I==wkl->end())
-				wkl->push_back(*i);
-		}
+		// only append to worklist if absent
+		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
+			appendIfAbsent<SEGNode*>(wkl,*i);
 	}
 	// update old
 	*oldtpts = *oldtpts | *newpart;
@@ -135,12 +147,10 @@ void propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 		// get old and new in sets 
 		oldink = succ->getInSet();
 		newink = oldink | sn->getOutSet();
-		// add if changed
+		// append to worklist if inset changed and not already in worklist
 		if (oldink != newink){
 			dbgs()<<"propagate for:\t"<<*sn<<"\n";
-			std::list<SEGNode*>::iterator I = std::find(wkl->begin(), wkl->end(), *i);
-			if(I==wkl->end())
-				wkl->push_back(succ);
+			appendIfAbsent<SEGNode*>(wkl,succ);
 			succ->setInSet(newink);
 		}
 	}
@@ -167,7 +177,7 @@ int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	unsigned int id;
 	// store static argument data
 	for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
-		// if argument out-of-range, store id 0i
+		// if argument out-of-range, store id 0
 		Value *v = oit->get();
 		//v->dump();
 		if (im->count(v) != 0){
@@ -259,11 +269,12 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	// else, x points everywhere
 	else
 		newpts = sn->getStaticData()->at(0);
+	// print debugging information
 	if(newpts == bdd_false())
 		llvm::dbgs()<<"empty copy result\n";
 	else
 		llvm::dbgs()<<"not empty\n";
-// store new top-level points-to set
+	// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
@@ -301,12 +312,149 @@ int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	} else topy = sn->getStaticData()->at(1);
 	// if x points uniquely, then strong update
 	if (sn->getArgIds()->at(0) && bdd_satcount(bddx & *tpts) == 1.0)
+	// TODO: I need to force it to not uniquely point to 0
+	// if (sn->getArgIds()->at(0) && bdd_satcount(bddx & bdd_not(fdd_ithvar(0,0)) &  *tpts) == 1.0)
 		outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
 	// else weak update
 	else outkpts = sn->getInSet();
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
 	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	return 0;
+}
+
+// TODO: implement these functions
+bdd genFilterSet(bdd inset, bdd gvarpts, std::vector<bdd> *StaticData) {
+	return bdd_false();
+}
+
+bdd matchingFunctions(const Value *funCall) {
+	return bdd_false();
+}
+
+std::map<const Function *,std::vector<bdd>*>* processTargets(std::vector<const Function*> *targets) {
+	return new std::map<const Function *,std::vector<bdd>*>();
+}
+
+int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gvarpts) {
+	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+	std::vector<const Function*> *targets = new std::vector<const Function*>();
+	std::vector<bdd> *StaticData = new std::vector<bdd>();
+	std::map<const Function*, std::vector<bdd>*>* targetParams;
+	const CallInst *ci = cast<CallInst>(sn->getInstruction());
+	const Value *funv = ci->getCalledValue();	
+	const Function *fun = ci->getCalledFunction();
+	unsigned int id;
+	bool isPtr;
+	// check if this function is a pointer
+	isPtr = (fun == NULL);
+	// if function called is defined, store it's name
+	if (im->count(funv) != 0) {
+		ArgIds->push_back(im->at(funv));
+		StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+	// otherwise, store every possible function it could point to
+	} else {
+		ArgIds->push_back(0); 
+		StaticData->push_back(matchingFunctions(funv));
+		sn->setDefined(false);
+	}
+	// iterate through instruction arguments, set argids, generate static data for arguments
+	for (unsigned int i = 0; i < ci->getNumArgOperands(); i++) {
+		// if argument out-of-range, store id 0
+		Value *v = ci->getArgOperand(i);
+		if (im->count(v) != 0) id = im->at(v); 
+		else { id = 0; sn->setDefined(false); }
+		VALIDIDX1(id);
+		ArgIds->push_back(id);
+		StaticData->push_back(fdd_ithvar(0,id));
+	}
+	sn->setArgIds(ArgIds);
+	// if this function is not a pointer, statically compute it
+	if (!isPtr) {
+		targets->push_back(fun);
+		targetParams = processTargets(targets);
+	}
+	// statically compute filter set
+	StaticData->push_back(genFilterSet(sn->getInSet(),gvarpts,StaticData));
+	// set static data
+	sn->setStaticData(StaticData);
+	return 0;
+}
+
+int processCall(bdd *tpts, SEGNode *sn, WorkList* swkl, std::list<const Function*> *fwkl,
+	std::map<unsigned int,const Function*> *fm, std::map<const Function *,SEG*> *sm) {
+	std::map<unsigned int,const Function *>::iterator fmit;
+  std::vector<const Function*>::iterator fit;
+	std::vector<bdd> *sd, *params;
+	std::vector<const Function*> *targets = new std::vector<const Function*>();
+	std::map<const Function*, std::vector<bdd>*>* targetParams;
+	
+	sd = sn->getStaticData();
+
+	bdd fpts;
+	bdd filter;
+	// if func is pointer, dynamically compute its targets
+	// if (sn->isFunctionPointer()) {
+		// build function points-to set
+		if (sn->getArgIds()->at(0)) fpts = bdd_restrict(*tpts,fdd_ithvar(0,sn->getArgIds()->at(0)));
+		else fpts = bdd_restrict(*tpts,fdd_ithset(0));
+		// find which functions pointer points-to, add to targets
+		for (fmit = fm->begin(); fmit != fm->end(); ++fmit)
+			if (bdd_satone(fpts & fdd_ithvar(1,fmit->first)) != bdd_false())
+				targets->push_back(fmit->second);
+		// build target parameters set
+		targetParams = processTargets(targets);
+	//} else targetParams = sn->getTargetParams();
+
+	// foreach target
+	for (fit = targets->begin(); fit != targets->end(); ++fit) {
+
+		// for each argument, add parameter argument pair
+		params = targetParams->at(*fit);
+		for (unsigned int i = 0; i < sd->size(); i++) {
+			bdd param = params->at(i);
+			bdd arg = sd->at(i+1);
+			bdd newpts;
+			// if argument is defined, add p -> Top(a)
+			if (sn->getArgIds()->at(i+1))
+				newpts = param & bdd_restrict(*tpts,arg);
+			// else, add p -> everything
+			else newpts = param & fdd_ithset(1);
+			// propagate top level for callee
+			propagateTopLevel(tpts,&newpts,sn,swkl,*fit);
+		}
+
+		// get SEG start node and inset
+		SEGNode *entry = sm->at(*fit)->getEntryNode();
+		std::list<SEGNode*>* wkl = swkl->at(*fit);
+		bdd inset = entry->getInSet();
+		// if inset has changed and worklist has changed, reinsert entry node in worklist
+		if (inset != (inset | filter) && appendIfAbsent<SEGNode*>(wkl,entry))
+			appendIfAbsent<const Function*>(fwkl,*fit);
+		// set target function's entry node's inset
+		entry->setInSet(inset | filter);
+	}	
+
+	// set outset to inset - filter
+	sn->setOutSet(sn->getInSet() - filter);
+	// propagate address taken
+	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	return 0;
+}
+
+int preprocessRet(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+	return 0;
+}
+
+int processRet(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+	// iterate through callsite list (list of segnodes)
+	// for each segnode:
+		// set the inset of callsite to include my outset
+		// propagateAddrTaken on caller
+		// if callsite stores a value (not a voidTy)
+			// update value to point to returned value in tpts
+			// propagateTopLevel on caller
+		// if caller's worklist changed, reinsert caller in worklist
 	return 0;
 }
 

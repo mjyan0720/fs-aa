@@ -93,7 +93,7 @@ private:
 	std::map<const Value*, unsigned> Value2Int;
 
 	/// FuncWorkList - Functions need to be processed
-	std::list<Function*> FuncWorkList;
+	std::list<const Function*> FuncWorkList;
 	/// StmtWorkList - the main algorithm iterate on it.
 	/// For each function, keep a statement list to work on for it.
 	std::map<const Function*, StmtList*> StmtWorkList;
@@ -398,7 +398,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 
 	// iterate through each function and each worklist
 	while(!FuncWorkList.empty()){
-		Function *f = FuncWorkList.front();
+		const Function *f = FuncWorkList.front();
 		FuncWorkList.pop_front();
 		StmtList *stmtList = StmtWorkList.find(f)->second;
 		while (!stmtList->empty()) {
