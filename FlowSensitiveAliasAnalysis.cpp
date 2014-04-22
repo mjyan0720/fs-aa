@@ -94,9 +94,13 @@ private:
 
 	/// FuncWorkList - Functions need to be processed
 	std::list<const Function*> FuncWorkList;
+
 	/// StmtWorkList - the main algorithm iterate on it.
 	/// For each function, keep a statement list to work on for it.
 	std::map<const Function*, StmtList*> StmtWorkList;
+
+	/// Int2Func - keeps a mapping from ints to functions, need for (pre)processCall
+	std::map<unsigned int,const Function*> Int2Func;
 
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
@@ -139,6 +143,8 @@ private:
   /// printBDD
   void printBDD(bdd b);
 
+	void preprocessFunction(const Function *f);
+
 public:
 	static char ID;
 	FlowSensitiveAliasAnalysis() : ModulePass(ID){
@@ -153,15 +159,10 @@ public:
 
 //copy from noaa
 
-	bool pointsTo(unsigned int v1, unsigned int v2) {
-		assert(v1 <= LocationCount && v2 <= LocationCount);
-		return (TopLevelPTS & fdd_ithvar(0,v1) & fdd_ithvar(1,v2)) != bdd_false();
-	}
-
 	AliasResult aliasCheck(unsigned int v1, unsigned int v2) {
 		assert(v1 <= LocationCount && v2 <= LocationCount);
 		bdd test = bdd_restrict(TopLevelPTS,fdd_ithvar(0,v1)) & bdd_restrict(TopLevelPTS,fdd_ithvar(0,v2));
-		if (test != bdd_false()) {
+		if (bdd_sat(test)) {
 			if (bdd_satcount(test) == 1.0) return MustAlias;
 			else return MayAlias;
 		} else return NoAlias;
@@ -178,8 +179,8 @@ public:
 		l1 = ret1 == Value2Int.end() ? 0 : ret1->second;
 		l2 = ret2 == Value2Int.end() ? 0 : ret2->second;	
 		if (l1 == 0 && l2 == 0) return NoAlias;
-		else if (l1 != 0 && pointsTo(l1,0)) return MayAlias;
-		else if (l2 != 0 && pointsTo(l2,0)) return MayAlias;
+		else if (l1 != 0 && pointsTo(*TopLevelPTS,l1,0)) return MayAlias;
+		else if (l2 != 0 && pointsTo(*TopLevelPTS,l2,0)) return MayAlias;
 		else return aliasCheck(l1,l2);
 */
 		return MayAlias;
@@ -314,7 +315,7 @@ void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
-//	DEBUG(F->dump());
+  // DEBUG(F->dump());
 	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
 	SEG *seg = Func2SEG.find(F)->second;
 	StmtList *stmtList = new StmtList;
@@ -334,7 +335,7 @@ void FlowSensitiveAliasAnalysis::printBDD(bdd b) {
 	unsigned int i, j;
 	for (i=0;i<LocationCount;++i) {
 		for (j=0;j<LocationCount;++j) {
-			if (bdd_restrict(b,(fdd_ithvar(0,i) & fdd_ithvar(1,j))) != bdd_false())
+			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
 			//if (bdd_satcount(b & (fdd_ithvar(0,i) & fdd_ithvar(1,j))) > 0.0) 
 				dbgs() << *((*INV_MAP)[i]) << " -> " << *((*INV_MAP)[j]) << "\n";
 			//else
@@ -343,13 +344,48 @@ void FlowSensitiveAliasAnalysis::printBDD(bdd b) {
 	}
 }
 
+void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
+	SEG* seg = Func2SEG.at(f);
+	SEGNode *entry = seg->getEntryNode();
+	std::vector<bdd> *StaticData = new std::vector<bdd>();
+	// add to Int2Func mapping
+	Int2Func.insert(std::pair<unsigned int,const Function *>(Value2Int.at(f),f));
+	// for each parameter, add it's hidden pair to the points-to set
+	for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
+		unsigned int argid = Value2Int.at(&*ai);
+		bdd arg = fdd_ithvar(0,argid);
+		// add points-to pair to Top points-to set
+		TopLevelPTS = TopLevelPTS | (arg & fdd_ithvar(1,argid+1));
+		// add argument to static data
+		StaticData->push_back(arg);	
+	}	
+	// set static data for node
+	entry->setStaticData(StaticData);
+}
+
+void processGlobal(unsigned int id, bdd *tpts) {
+  *tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
+}
+
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+	// preprocess all global variables
+	bdd gvarpts = bdd_false();
+	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
+		// add them to toplevel points-to set
+		GlobalVariable *v = &*mi;
+		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
+		processGlobal(Value2Int.at(v), &TopLevelPTS);
+		// add them to global variable pointer set
+		gvarpts = gvarpts | fdd_ithvar(0,Value2Int.at(v));
+	}
 	// iterate through each function and each worklist
 	std::map<const Function*, StmtList*>::iterator list_iter;
 	std::list<SEGNode*>::iterator stmt_iter;
 	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
-		//Function *f = list_iter->first;
+		// preprocess this function header
+		preprocessFunction(list_iter->first);
 		StmtList* stmtList = list_iter->second;
+		// preprocess each instruction in the function
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			const Instruction *i = sn->getInstruction();
@@ -371,7 +407,7 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 				preprocessStore(sn,&Value2Int);
 			}  else if (isa<CallInst>(i)) {
 				sn->setType(4);
-				// preprocessCall(sn,&Value2Int);
+				preprocessCall(sn,&Value2Int,gvarpts);
 			} else if (isa<ReturnInst>(i)) {
 				sn->setType(5);
 				// preprocessRet(sn,&Value2Int);
@@ -383,21 +419,11 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	}
 }
 
-void processGlobal(unsigned int id, bdd *tpts) {
-  *tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
-}
-
 void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 
 	// setup analysis
 	TopLevelPTS = bdd_false();
 	setupAnalysis(M);
-
-	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
-		GlobalVariable *v = &*mi;
-		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
-		processGlobal(Value2Int.at(v), &TopLevelPTS);
-	}
 
 	// iterate through each function and each worklist
 	while(!FuncWorkList.empty()){
@@ -408,33 +434,30 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 	
-//			DEBUG(printBDD(TopLevelPTS));
-//			DEBUG(std::cout<<std::endl);
+      // DEBUG(printBDD(TopLevelPTS));
+      // DEBUG(std::cout<<std::endl);
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
-			//DEBUG(fdd_printset(TopLevelPTS));
+			// DEBUG(fdd_printset(TopLevelPTS));
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
 				case Instruction::Load:		processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
 				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
-				case Instruction::Call:
+				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG); break;
 				case Instruction::Ret:
 				case Instruction::GetElementPtr:
 				case Instruction::Invoke:	break;//do nothing for test;
-				//case 4: processCall(&TopLevelPTS,sn);  break;
-				//case 5: processRet(&TopLevelPTS,sn);   break;
-				//case 6: processGEP(&TopLevelPTS,sn);   break;
 				default: assert(false && "Out of bounds Instr Type");
 			}
 
 			// print out sets
-			//DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
-			//DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
+			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
+			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
 		}
 	}
-//	DEBUG(printBDD(TopLevelPTS));
-//	DEBUG(std::cout<<std::endl);
+  // DEBUG(printBDD(TopLevelPTS));
+  // DEBUG(std::cout<<std::endl);
 }
 
 

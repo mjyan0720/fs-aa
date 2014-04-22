@@ -93,7 +93,7 @@ void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domai
 	assert(fdd_extdomain(domain,2) >= 0);
 	LPAIR = bdd_newpair();
 	RPAIR = bdd_newpair();
-  assert(fdd_setpair(LPAIR,1,0) >= 0);
+	assert(fdd_setpair(LPAIR,1,0) >= 0);
 	assert(fdd_setpair(RPAIR,0,1) >= 0);
 }
 
@@ -103,18 +103,9 @@ void pointsToFinalize() {
 	bdd_done();
 }
 
-// given a b which is a set in FDD1, find all elements in it
-std::vector<unsigned int> *pointsto(bdd b) {
-	std::vector<unsigned int> *v;
-	v = new std::vector<unsigned int>();
-	// check if each element is in the set
-	for (unsigned int i = 0; i < POINTSTO_MAX; i++) {
-		int cnt = bdd_satcount(restrictIn(b,i));
-		if (cnt >= 1) v->push_back(i);
-		// if set has mainly small values, add:
-		// if (bdd_satcount(b - fdd_ithvar(0,i)) = 0) break;
-	}
-	return v;
+bool pointsTo(bdd rel, unsigned int v1, unsigned int v2) {
+	assert(v1 <= POINTSTO_MAX && v2 <= POINTSTO_MAX);
+	return bdd_sat(rel & fdd_ithvar(0,v1) & fdd_ithvar(1,v2));
 }
 
 // append node to list if not present, return true if append occurred
@@ -270,10 +261,10 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	else
 		newpts = sn->getStaticData()->at(0);
 	// print debugging information
-	if(newpts == bdd_false())
-		llvm::dbgs()<<"empty copy result\n";
+	if (bdd_unsat(newpts))
+		llvm::dbgs() << "empty copy result\n";
 	else
-		llvm::dbgs()<<"not empty\n";
+		llvm::dbgs() << "not empty\n";
 	// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
@@ -323,9 +314,14 @@ int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	return 0;
 }
 
-// TODO: implement these functions
+// ret bdd with pairs that originate either from an argument or a global variable
 bdd genFilterSet(bdd inset, bdd gvarpts, std::vector<bdd> *StaticData) {
-	return bdd_false();
+	bdd args = bdd_false();
+	for (unsigned int i = 0; i < StaticData->size()-1; i++) args = args | StaticData->at(i);
+	// if filter can point anywhere, return whole inset
+	bdd filter = (args | gvarpts) & inset;
+	if (bdd_sat(filter & fdd_ithvar(1,0))) return inset;
+	else return filter;
 }
 
 bdd matchingFunctions(const Value *funCall) {
@@ -338,18 +334,17 @@ std::map<const Function *,std::vector<bdd>*>* processTargets(std::vector<const F
 
 int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gvarpts) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
-	std::vector<const Function*> *targets = new std::vector<const Function*>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
-	std::map<const Function*, std::vector<bdd>*>* targetParams;
+	CallData *cd = new CallData();
 	const CallInst *ci = cast<CallInst>(sn->getInstruction());
 	const Value *funv = ci->getCalledValue();	
 	const Function *fun = ci->getCalledFunction();
 	unsigned int id;
-	bool isPtr;
-	// check if this function is a pointer
-	isPtr = (fun == NULL);
+	// check if this function is a pointer and if it is defined
+	cd->isPtr = (fun == NULL);
+	cd->isDefinedFunc = im->count(funv) != 0;
 	// if function called is defined, store it's name
-	if (im->count(funv) != 0) {
+	if (cd->isDefinedFunc) {
 		ArgIds->push_back(im->at(funv));
 		StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
 	// otherwise, store every possible function it could point to
@@ -370,48 +365,78 @@ int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gva
 	}
 	sn->setArgIds(ArgIds);
 	// if this function is not a pointer, statically compute it
-	if (!isPtr) {
+	if (!cd->isPtr) {
+		std::vector<const Function*> *targets = new std::vector<const Function*>();
 		targets->push_back(fun);
-		targetParams = processTargets(targets);
+		cd->targets = targets;
 	}
 	// statically compute filter set
 	StaticData->push_back(genFilterSet(sn->getInSet(),gvarpts,StaticData));
+	// store type of this called function
+	if (funv->getType()->isPointerTy())
+		cd->functionType = fun->getType()->getPointerElementType();
+	else
+		cd->functionType = fun->getType();
 	// set static data
 	sn->setStaticData(StaticData);
+	// set extra data
+	sn->setExtraData(cd);
 	return 0;
 }
 
-int processCall(bdd *tpts, SEGNode *sn, WorkList* swkl, std::list<const Function*> *fwkl,
-	std::map<unsigned int,const Function*> *fm, std::map<const Function *,SEG*> *sm) {
+int processCall(bdd *tpts,
+                SEGNode *sn,
+                WorkList* swkl,
+                std::list<const Function*> *fwkl,
+                std::map<unsigned int,const Function*> *fm,
+                std::map<const Function *,SEG*> *sm) {
+	// declare some variables we need
 	std::map<unsigned int,const Function *>::iterator fmit;
-  std::vector<const Function*>::iterator fit;
+	std::vector<const Function*>::iterator fit;
+	std::vector<const Function*> *targets;
 	std::vector<bdd> *sd, *params;
-	std::vector<const Function*> *targets = new std::vector<const Function*>();
-	std::map<const Function*, std::vector<bdd>*>* targetParams;
-	
-	sd = sn->getStaticData();
+	bdd fpts, filter;
+	unsigned int fv;
+	CallData *cd;	
+	Type *ft;
 
-	bdd fpts;
-	bdd filter;
+	fv = sn->getArgIds()->at(0);
+	cd = dynamic_cast<CallData*>(sn->getExtraData());
+	sd = sn->getStaticData();
+	ft = cd->functionType;
+
 	// if func is pointer, dynamically compute its targets
-	// if (sn->isFunctionPointer()) {
-		// build function points-to set
-		if (sn->getArgIds()->at(0)) fpts = bdd_restrict(*tpts,fdd_ithvar(0,sn->getArgIds()->at(0)));
+	if (cd->isPtr) {
+		targets = new std::vector<const Function*>();
+		// if function is defined and doesn't point everywhere, compute it's points-to set
+		if (fv && !pointsTo(*tpts,fv,0)) fpts = bdd_restrict(*tpts,fdd_ithvar(0,fv));
+		// otherwise, 
 		else fpts = bdd_restrict(*tpts,fdd_ithset(0));
-		// find which functions pointer points-to, add to targets
-		for (fmit = fm->begin(); fmit != fm->end(); ++fmit)
-			if (bdd_satone(fpts & fdd_ithvar(1,fmit->first)) != bdd_false())
-				targets->push_back(fmit->second);
-		// build target parameters set
-		targetParams = processTargets(targets);
-	//} else targetParams = sn->getTargetParams();
+		// find which functions pointer points-to and types agree, add to targets
+		for (fmit = fm->begin(); fmit != fm->end(); ++fmit) {
+			if (bdd_sat(fpts & fdd_ithvar(1,fmit->first))) {
+				if (fmit->second->getFunctionType() == ft) {
+					targets->push_back(fmit->second);
+				} else {
+					dbgs() << "Types: " << ft << " and " << fmit->second->getFunctionType() << " do not agree";
+				}	
+			}
+		}
+	// else get its targets statically
+	} else {
+		// if this is only a declaration, fail
+		// TODO: change this policy to something more robust
+		assert(cd->targets->at(0)->isDeclaration());
+		targets = cd->targets;
+	}
 
 	// foreach target
 	for (fit = targets->begin(); fit != targets->end(); ++fit) {
 
 		// for each argument, add parameter argument pair
-		params = targetParams->at(*fit);
-		for (unsigned int i = 0; i < sd->size(); i++) {
+		SEGNode *entry = sm->at(*fit)->getEntryNode();
+		params = entry->getStaticData();
+		for (unsigned int i = 0; i < sd->size()-1; i++) {
 			bdd param = params->at(i);
 			bdd arg = sd->at(i+1);
 			bdd newpts;
@@ -421,11 +446,11 @@ int processCall(bdd *tpts, SEGNode *sn, WorkList* swkl, std::list<const Function
 			// else, add p -> everything
 			else newpts = param & fdd_ithset(1);
 			// propagate top level for callee
-			propagateTopLevel(tpts,&newpts,sn,swkl,*fit);
+			// TODO: do I need to change the propagatation function?
+			propagateTopLevel(tpts,&newpts,entry,swkl,*fit);
 		}
 
-		// get SEG start node and inset
-		SEGNode *entry = sm->at(*fit)->getEntryNode();
+		// get SEG entry node's inset
 		std::list<SEGNode*>* wkl = swkl->at(*fit);
 		bdd inset = entry->getInSet();
 		// if inset has changed and worklist has changed, reinsert entry node in worklist
@@ -457,130 +482,3 @@ int processRet(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 		// if caller's worklist changed, reinsert caller in worklist
 	return 0;
 }
-
-/*
- * TODO: We need to handle the case of function pointers.
- *       Thus, one of the following should occur:
- *         1) The function is constant (not a pointer) and the params are passed in via arguments
- *         2) The function is a pointer, the param arguments are NULL, and then each function
- *            pointed to is discovered dynamically and a set of function ids is returned
- *       
- */
-bdd processCall(bdd tpts, bdd inkpts, bdd global, unsigned int x, unsigned int f, bool ptr, std::vector<unsigned int> *args) {
-	std::vector<unsigned int>::iterator fit, pit;
-	std::vector<unsigned int> *funcs, *params;
-	std::vector<bdd>::iterator ait;
-	std::vector<bdd> *argpts;
-	bdd filtk, bddargs, outkpts;
-	unsigned int size;
-	VALIDIDX2(x,f);
-	size = args->size();
-	bddargs = bddfalse;
-	funcs = new std::vector<unsigned int>();
-	argpts = new std::vector<bdd>(); 
-	// compute every call argument OR'd together
-	// and where call arguments point
-	for (pit = args->begin(); pit != args->end(); ++pit) {
-		VALIDIDX1(*pit);
-		bddargs = bddargs | fdd_ithvar(0,*pit);
-		argpts->push_back(restrictIn(tpts,*pit));
-	}
-	// filter input by reachable from global or call arg
-	filtk = inkpts & (global | bddargs);
-	// find out which function(s) f refers to
-	if (!ptr) funcs->push_back(f);
-	else {
-		free(funcs);
-		funcs = pointsto(restrictIn(tpts,f));
-	}
-	// for each potential callee
-	for (fit = funcs->begin(); fit != funcs->end(); ++fit) {
-		// get the call parameters
-		params = funParams(*fit);
-		assert(params->size() == size);
-		// for each parameter and argument
-		for (pit = params->begin(), ait = argpts->begin(); pit != params->end(); ++pit, ++ait) {
-			VALIDIDX1(*pit);
-			// update parameter to point where argument points to
-			tpts = tpts | (fdd_ithvar(0,*pit) & *ait);
-			// propagate top level edges
-			propagateTopLevel(*fit,*pit);
-		}
-		// update worklists and function entry node
-		updateWorklist1(*fit,updateFunEntry(*fit,filtk));
-	}
-	// propogate address taken TODO: fix f and k
-	propagateAddrTaken(0,0);
-	// update outset TODO: store it
-	outkpts = outkpts | (inkpts - filtk);
-	return tpts;
-}
-
-unsigned int processRet(unsigned int f, unsigned int k, bdd tpts, unsigned int x) {
-	std::vector<callsite_t> *callsites;
-	std::vector<callsite_t>::iterator cit;
-	// get callsites
-	callsites = funCallsites(f);
-	// for each callsite
-	for (cit = callsites->begin(); cit != callsites->end(); ++cit) {
-		// TODO: get ref to SEG node for each callsite
-		// propogate AddrTaken
-		propagateAddrTaken(cit->first,cit->second);
-		// if this call is an assignment: r = f( ... )
-		if (assignedCall(cit->second)) {
-			// tpts = tpts | (fdd_ithvar(0,r) & restrictIn(tpts,x));
-			propagateTopLevel(cit->first,cit->second);
-		}
-		// if statement worklist changed TODO: finish this
-		// if (statementWorklistChanged(cit->first())) {
-		//}
-	}
-	return 0;
-}
-
-/*
-int main(void) { bdd tpts,kpts,opts;
-	set<unsigned int> vars;
-	vars.insert(1);
-	vars.insert(2);
-	vars.insert(4);
-	pointsToInit(1000,1000,10);
-	tpts = bdd_false();
-	tpts = processAlloc(tpts,1,1);
-	tpts = processAlloc(tpts,2,2);
-	tpts = processAlloc(tpts,4,4);
-	tpts = processCopy(tpts,3,&vars);
-	fdd_print(tpts);
-	//
-	tpts = bdd_false();
-	kpts = bdd_false();
-	tpts = processAlloc(tpts,0,1);
-	tpts = processAlloc(tpts,0,2);
-	tpts = processAlloc(tpts,0,3);
-	kpts = processAlloc(kpts,1,5);
-	kpts = processAlloc(kpts,2,6);
-	kpts = processAlloc(kpts,3,7);
-	kpts = processAlloc(kpts,4,0);
-	fdd_print(tpts);
-	tpts = processLoad(tpts,kpts,9,0);
-	fdd_print(tpts);
-	//
-	tpts = bdd_false();
-	kpts = bdd_false();
-	tpts = processAlloc(tpts,1,3);
-	tpts = processAlloc(tpts,3,5);
-	tpts = processAlloc(tpts,3,6);
-	tpts = processAlloc(tpts,3,7);
-	kpts = processAlloc(kpts,1,2);
-	kpts = processAlloc(kpts,1,5);
-	kpts = processAlloc(kpts,2,6);
-	kpts = processAlloc(kpts,3,8);
-	fdd_print(kpts);
-	kpts = processStore(tpts,kpts,1,3);	
-	fdd_print(kpts);
-	//
-	tpts = bdd_false();
-	tpts = processAlloc(tpts,1,3);
-	pointsToFinalize();
-}
-*/

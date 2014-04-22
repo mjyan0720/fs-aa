@@ -8,16 +8,19 @@ namespace llvm {
 	class SEGNode;
 }
 
-class ExtraData {};
-class CallData : public ExtraData {
-	public:
-		bool isPtr;
-		bool isDefined;
-	  std::vector<const llvm::Function*> *targets;
-	  std::map<const llvm::Function*, std::vector<bdd>*> *targetParams;
+struct ExtraData {
+	virtual ~ExtraData() {}
 };
-class RetData  : public ExtraData {
-	public:
+struct CallData : public ExtraData {
+		bool isPtr;
+		bool isDefinedFunc;
+		llvm::Type *functionType;
+		std::vector<const llvm::Function*> *targets;
+		CallData() {
+			targets = NULL;
+		}
+};
+struct RetData : public ExtraData {
 		std::vector<llvm::SEGNode*> callsites;
 };
 
