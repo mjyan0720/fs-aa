@@ -116,7 +116,7 @@ void SEG::applyTransformation(){
 	std::set<SEGNode*> WorkList;
 	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni){
 		SEGNode *sn = &*sni;
-		if(sn->isnPnode()==false){
+		if(sn->isnPnode()==false | sn->addrTaken()==false){
 			WorkList.insert(sn);
 		}
 	}
@@ -133,11 +133,22 @@ void SEG::applyTransformation(){
 			}
 			if(sn->pred_size()==1){
 				DEBUG(errs()<<"Apply T2 : ");
-				sn->dump();
+				DEBUG(sn->dump());
 				SEGNode *pred = *(sn->pred_begin());
 				pred->transferSuccessor(sn);
 				pred->removeSuccessor(sn);
-				sn->eraseFromParent();
+				if(sn->isnPnode()==false)
+					sn->eraseFromParent();
+				change = true;
+				WorkList.erase(sn);
+			} else if(sn->succ_size()==1) {
+				DEBUG(errs()<<"Apply T2 : ");
+				DEBUG(sn->dump());
+				SEGNode *succ = *(sn->succ_begin());
+				succ->transferPredecessor(sn);
+				sn->removeSuccessor(succ);
+				if(sn->isnPnode()==false)
+					sn->eraseFromParent();
 				change = true;
 				WorkList.erase(sn);
 			}
@@ -170,7 +181,8 @@ void SEG::applyTransformation(){
 					SEGNode *sn = SCC[i];
 					header->transferSuccessor(sn);
 					header->transferPredecessor(sn);
-					sn->eraseFromParent();
+					if(sn->isnPnode()==false)
+						sn->eraseFromParent();
 					SEGNode::succ_iterator I = std::find(header->succ_begin(), header->succ_end(), header);
 					assert( I!=header->succ_end() && "not SCC");
 					header->removeSuccessor(header);

@@ -36,7 +36,11 @@ private:
 	/// IsnPnode - Indicate whether this node is preserving node or not
 	/// if it neither defines nor uses pointer information, it's false
 	bool IsnPnode;
-	
+
+	/// AddrTaken - Indicate whether this node define or use an address
+	/// taken variable
+	bool AddrTaken;
+
 	/// Parent - Indicate SEG this node resides in.
 	SEG *Parent;
 
@@ -90,6 +94,7 @@ public:
 	/// getInstruction - Return LLVM Instruction the node contains
 	const Instruction *getInstruction() const { return Inst; }
 	bool	isnPnode() { return IsnPnode; }
+	bool	addrTaken() {	return AddrTaken;	}
 	SEG *getParent() { return Parent; }
 
 	/// Access Extra Information
