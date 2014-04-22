@@ -168,7 +168,7 @@ public:
 	}
 
 	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-	  std::map<const Value*, unsigned>::iterator ret1, ret2;
+/*	  std::map<const Value*, unsigned>::iterator ret1, ret2;
 		const Value *v1, *v2;
 		unsigned int l1, l2;
 		v1 = LocA.Ptr;
@@ -181,6 +181,8 @@ public:
 		else if (l1 != 0 && pointsTo(l1,0)) return MayAlias;
 		else if (l2 != 0 && pointsTo(l2,0)) return MayAlias;
 		else return aliasCheck(l1,l2);
+*/
+		return MayAlias;
 	}
 
 	virtual ModRefBehavior getModRefBehavior(ImmutableCallSite CS) {
@@ -232,6 +234,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	initializeFuncWorkList(M);
 	
 	doAnalysis(M);
+	dbgs()<<"Analysis Done\n";
 	return false;
 }
 
@@ -239,7 +242,7 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		const Function * f = &*mi;
 		SEG *seg = new SEG(f);
-		seg->dump();
+		DEBUG(seg->dump());
 		Func2SEG.insert( std::pair<const Function*, SEG*>(f, seg) );
 	}
 }
@@ -311,7 +314,7 @@ void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
-	F->dump();
+//	DEBUG(F->dump());
 	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
 	SEG *seg = Func2SEG.find(F)->second;
 	StmtList *stmtList = new StmtList;
@@ -405,10 +408,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 	
-			DEBUG(printBDD(TopLevelPTS));
-			DEBUG(std::cout<<std::endl);
+//			DEBUG(printBDD(TopLevelPTS));
+//			DEBUG(std::cout<<std::endl);
 	
-			dbgs()<<"Processing "<<sn->getType()<<":\t"<<*sn<<"\n";
+			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
 			//DEBUG(fdd_printset(TopLevelPTS));
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
@@ -417,7 +420,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::Call:
 				case Instruction::Ret:
-				case Instruction::GetElementPtr:break;//do nothing for test;
+				case Instruction::GetElementPtr:
+				case Instruction::Invoke:	break;//do nothing for test;
 				//case 4: processCall(&TopLevelPTS,sn);  break;
 				//case 5: processRet(&TopLevelPTS,sn);   break;
 				//case 6: processGEP(&TopLevelPTS,sn);   break;
@@ -425,12 +429,12 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 
 			// print out sets
-			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
-			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
+			//DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
+			//DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
 		}
 	}
-	DEBUG(printBDD(TopLevelPTS));
-	DEBUG(std::cout<<std::endl);
+//	DEBUG(printBDD(TopLevelPTS));
+//	DEBUG(std::cout<<std::endl);
 }
 
 
