@@ -25,6 +25,7 @@ using namespace llvm;
 SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	IsnPnode = false;
 	Defined = true;
+	AddrTaken = true;
 }
 
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
@@ -32,6 +33,9 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 			isa<StoreInst>(inst)  | isa<CallInst>(inst) | isa<ReturnInst>(inst) |
 			isa<GetElementPtrInst>(inst);
 	Defined = true;
+	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) | 
+		    isa<ReturnInst>(inst) | isa<GetElementPtrInst>(inst);
+
 }
 
 SEGNode::~SEGNode() {
@@ -119,6 +123,7 @@ void SEGNode::eraseFromParent() {
 	}
 	getParent()->erase(this);
 }
+
 
 void SEGNode::dump() const {
 	if(Inst==NULL)
