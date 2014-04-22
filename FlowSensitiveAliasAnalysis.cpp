@@ -423,6 +423,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				//case 6: processGEP(&TopLevelPTS,sn);   break;
 				default: assert(false && "Out of bounds Instr Type");
 			}
+
+			// print out sets
+			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
+			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
 		}
 	}
 	DEBUG(printBDD(TopLevelPTS));
