@@ -20,6 +20,7 @@
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "bdd.h"
+#include "Extra.h"
 #include <set>
 #include <vector>
 
@@ -27,7 +28,6 @@ namespace llvm {
 
 class SEGNode;
 class SEG;
-class ExtraData;
 
 class SEGNode : public ilist_node<SEGNode>{
 private:
