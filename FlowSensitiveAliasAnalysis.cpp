@@ -369,7 +369,7 @@ void processGlobal(unsigned int id, bdd *tpts) {
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	// preprocess all global variables
-	bdd globalValueNames = bdd_false();
+	globalValueNames = bdd_false();
 	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;

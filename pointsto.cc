@@ -147,10 +147,11 @@ void propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, 
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != (*oldtpts | *newpart)){
-		dbgs()<<"propagate for:\t"<<*sn<<"\n";
+		dbgs() << "PROPAGATE TOPLEVEL FOR:\t"<<*sn<<"\n";
 		// only append to worklist if absent
 		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
-			appendIfAbsent<SEGNode*>(wkl,*i);
+			if (appendIfAbsent<SEGNode*>(wkl,*i))
+				dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
 	}
 	// update old
 	*oldtpts = *oldtpts | *newpart;
@@ -167,8 +168,9 @@ void propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 		newink = oldink | sn->getOutSet();
 		// append to worklist if inset changed and not already in worklist
 		if (oldink != newink){
-			dbgs()<<"propagate for:\t"<<*sn<<"\n";
-			appendIfAbsent<SEGNode*>(wkl,succ);
+			dbgs()<<"PROPAGATE ADDRTAKEN FOR:\t"<<*sn<<"\n";
+			if (appendIfAbsent<SEGNode*>(wkl,succ))
+				dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
 			succ->setInSet(newink);
 		}
 	}
@@ -468,6 +470,9 @@ int processCall(bdd *tpts,
 		targets = cd->targets;
 	}
 
+	dbgs() << "BDD FILTER:\n";
+	printBDD(POINTSTO_MAX,filter);
+
 	dbgs() << "ENUMERATE TARGETS\n";
 	// foreach target
 	for (fit = targets->begin(); fit != targets->end(); ++fit) {
@@ -496,8 +501,12 @@ int processCall(bdd *tpts,
 		std::list<SEGNode*>* wkl = swkl->at(*fit);
 		bdd inset = entry->getInSet();
 		// if inset has changed and worklist has changed, reinsert entry node in worklist
-		if (inset != (inset | filter) && appendIfAbsent<SEGNode*>(wkl,entry))
-			appendIfAbsent<const Function*>(fwkl,*fit);
+		if (inset != (inset | filter)) {
+			if (appendIfAbsent<SEGNode*>(wkl,entry)) {
+				dbgs() << "CALL: APPENDED " << *entry << " TO " << (*fit)->getName() << "'S WORKLIST\n";
+				appendIfAbsent<const Function*>(fwkl,*fit);
+			}
+		} else dbgs() << "CALL: NOTHING APPENDED\n";
 		// set target function's entry node's inset
 		entry->setInSet(inset | filter);
 	}	
