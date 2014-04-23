@@ -110,31 +110,30 @@ bool pointsTo(bdd rel, unsigned int v1, unsigned int v2) {
 
 void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) {
 	unsigned int i, j;
+	bool empty = true;
 	for (i=0;i<max;++i) {
 		for (j=0;j<max;++j) {
 			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j))) {
+				empty = false;
 				std::string *s1,*s2;
-				s1 = lt->count(i) > 0 ? lt->at(i) : NULL;
-				s2 = lt->count(j) > 0 ? lt->at(j) : NULL;
+				// check if these strings have a non-null mapping
+				s1 = lt != NULL && lt->count(i) > 0 ? lt->at(i) : NULL;
+				s2 = lt != NULL && lt->count(j) > 0 ? lt->at(j) : NULL;
+				// print out first elt
 				if (s1 != NULL) dbgs() << *s1 << " -> ";
-				else dbgs() << "NOT FOUND: " << i << " -> ";
+				else if (lt != NULL) dbgs() << "NOT FOUND: " << i << " -> ";
+				else dbgs() << i << " -> ";
+				// print out second elt
 				if (s2 != NULL) dbgs() << *s2 << "\n";
-				else dbgs() << "NOT FOUND: " << j << "\n";
+				else if (lt != NULL) dbgs() << "NOT FOUND: " << j << "\n";
+				else dbgs() << j << "\n";
 			}
 		}
 	}
+	if (empty) dbgs() << "EMPTY\n";
 }
 
-void printBDD(unsigned int max, bdd b) {
-	unsigned int i, j;
-	for (i=0;i<max;++i) {
-		for (j=0;j<max;++j) {
-			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
-				dbgs() << i << " -> " << j << "\n";
-		}
-	}
-}
-
+void printBDD(unsigned int max, bdd b) { printBDD(max,NULL,b); }
 
 // append node to list if not present, return true if append occurred
 template <class T>

@@ -51,9 +51,11 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
 		const Value *v = it->first;
 		unsigned int id = it->second;
-		// if value is an instruction, add it's function's parent name
+		// if value is an instruction or argument, add it's function's parent name
 		if (isa<Instruction>(v))
 			name = new ss(ss(cast<Instruction>(v)->getParent()->getParent()->getName())+"_"+ss(v->getName()));
+		else if (isa<Argument>(v))	
+			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(v->getName()));
 		else 
 			name = new ss(v->getName());
 		// add hidden names for each value type that has hidden values
