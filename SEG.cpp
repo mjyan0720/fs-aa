@@ -128,15 +128,20 @@ void SEG::initialize() {
 				header->setSource(from);
 				break;
 			}
-			sn = inst2sn[cast<Instruction>(from)];
-			if(sn == header){//a cycle detected, impossible to have cycle
+			SEGNode *fromSn = inst2sn[cast<Instruction>(from)];
+			if(fromSn->isnPnode()==false && sn != header){
+				header->setSource(sn->getInstruction());
+			} else if(fromSn->isnPnode()==false && sn == header ) {
+				header->unsetSingleCopy();
+			} else if(fromSn == header){//a cycle detected, impossible to have cycle
 				header->unsetSingleCopy();
 				break;
-			} else if(sn->singleCopy()==false){
+			} else if(fromSn->singleCopy()==false && fromSn->isnPnode()==true){
 				header->setSource(from);
-			} else if(sn->getSource()!=NULL){
-				header->setSource(sn->getSource());
+			} else if(fromSn->singleCopy()==true && fromSn->getSource()!=NULL){
+				header->setSource(fromSn->getSource());
 			}
+			sn = fromSn;
 		}
 #endif
 	}
