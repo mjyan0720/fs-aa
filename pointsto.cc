@@ -416,9 +416,9 @@ int processCall(bdd *tpts,
 	CallData *cd;	
 	Type *ft;
 
-	fv = cd->funcId;
 	//cd = dynamic_cast<CallData*>(sn->getExtraData());
 	cd = static_cast<CallData*>(sn->getExtraData());
+	fv = cd->funcId;
 	sd = sn->getStaticData();
 	ft = cd->funcType;
 	fn = cd->funcName;
