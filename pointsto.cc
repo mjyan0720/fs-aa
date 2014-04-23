@@ -282,11 +282,11 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	else
 		newpts = sn->getStaticData()->at(0);
 	// print debugging information
-	if (bdd_unsat(newpts))
+/*	if (bdd_unsat(newpts))
 		llvm::dbgs() << "empty copy result\n";
 	else
 		llvm::dbgs() << "not empty\n";
-	// store new top-level points-to set
+*/	// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
