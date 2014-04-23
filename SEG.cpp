@@ -125,7 +125,7 @@ void SEG::initialize() {
 				break;
 			}
 			sn = inst2sn[cast<Instruction>(from)];
-			if(sn == header){//a cycle detected
+			if(sn == header){//a cycle detected, impossible to have cycle
 				header->unsetSingleCopy();
 				break;
 			} else if(sn->singleCopy()==false){
