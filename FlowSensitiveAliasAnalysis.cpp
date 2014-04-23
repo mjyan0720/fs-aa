@@ -344,9 +344,11 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 #ifdef ENABLE_OPT_1
 		for(std::vector<SEGNode *>::iterator vi=SingleCopySNs.begin(), ve=SingleCopySNs.end(); vi!=ve; ++vi){
 			SEGNode *sn = *vi;
+			DEBUG(sn->dump());
 			const Instruction *inst = sn->getInstruction();
 			const Value *from = sn->getSource();
 			assert( from!=NULL && "must has a source value");
+			DEBUG(from->dump());
 			std::map<const Value*, unsigned>::iterator mi = Value2Int.find(from);
 			assert( mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
 			DEBUG(dbgs()<<"assign "<<mi->second<<" to\t"<<*sn<<"\n");
@@ -386,6 +388,9 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 
 void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	SEG* seg = Func2SEG.at(f);
+
+	if(seg->isDeclaration())
+		return;
 	SEGNode *entry = seg->getEntryNode();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	// add to Int2Func mapping

@@ -116,9 +116,13 @@ void SEG::initialize() {
 		const Value *from = NULL;
 		while(sn->singleCopy()==true && sn->getSource()==NULL){
 			const Instruction *I = sn->getInstruction();
+			from = NULL;
 			if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
 				from = inst->getPointerOperand();
+			} else if(const BitCastInst *inst = dyn_cast<BitCastInst>(I)){
+				from = inst->getOperand(0);
 			}
+			assert(from!=NULL && "not support for all singleCopy instruction type");
 			// possiblly use Argument at right hand side
 			if(isa<Instruction>(from)==false){
 				header->setSource(from);

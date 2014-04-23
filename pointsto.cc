@@ -256,8 +256,8 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	vd = im->count(v) != 0;
 	sn->setDefined(pd & vd);
 	
-	sn->dump();
-	dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n";
+	//sn->dump();
+	//dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n";
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? im->at(p) : 0);
 	ArgIds->push_back(vd ? im->at(v) : 0);
@@ -466,7 +466,13 @@ int processCall(bdd *tpts,
 		dbgs() << "NOT PTR\n";
 		// if this is only a declaration, fail
 		// TODO: change this policy to something more robust
-		assert(!cd->targets->at(0)->isDeclaration());
+		//assert(!cd->targets->at(0)->isDeclaration());
+		// TODO: if it's declaration, set return value points to everywhere
+		// propagate top/addr, may change arguments
+		// can use function to get more information like whether pass by reference
+		// or return by reference. check llvm doc for more detail.
+		if(cd->targets->at(0)->isDeclaration())
+			return 0;
 		targets = cd->targets;
 	}
 
