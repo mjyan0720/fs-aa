@@ -379,7 +379,12 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 		const Instruction *inst = sn->getInstruction();
 		// Return Instruction doesn't define a variable,
 		// don't initialize worklist with it.
+		// assign singleCopy same id as its source, already processed
+#ifdef ENABLE_OPT_1
+		if(isa<ReturnInst>(inst) | sn->singleCopy())
+#else
 		if(isa<ReturnInst>(inst))
+#endif
 			continue;
 		stmtList->push_back(sn);
 	}
@@ -498,6 +503,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				//only has one definition, so it won't be merge point for top, don't need
 				//to propagateTop.
 				case Instruction::GetElementPtr:
+				case Instruction::BitCast:
 				case Instruction::Invoke:	break;//do nothing for test;
 				default: assert(false && "Out of bounds Instr Type");
 			}
