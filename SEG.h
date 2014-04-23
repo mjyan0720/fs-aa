@@ -87,6 +87,9 @@ public:
 	void erase(iterator SNI){
 		SEGNodes.erase(SNI);
 	}
+#ifdef ENABLE_OPT_1
+	void pruneSingleCopy(std::vector<SEGNode *> SingleCopySNs);
+#endif
 };
 
 //raw_ostream& llvm::operator<<(raw_ostream &OS, const SEG &G);
