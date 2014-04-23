@@ -266,6 +266,9 @@ int processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	// add pair to top-level pts
 	alloc = sn->getStaticData()->at(0);
 	propagateTopLevel(tpts,&alloc,sn,swkl,sn->getParent()->getFunction());
+	// propagate addr taken
+	sn->setOutSet(sn->getInSet());
+	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -288,6 +291,9 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 		llvm::dbgs() << "not empty\n";
 	// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	// propagate addr taken
+	sn->setOutSet(sn->getInSet());
+	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 
@@ -307,6 +313,9 @@ int processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
 	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
 	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	// propagate addr taken
+	sn->setOutSet(sn->getInSet());
+	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
 	return 0;
 }
 

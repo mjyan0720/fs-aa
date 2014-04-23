@@ -441,8 +441,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 
 			// print out sets
-			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,INV_MAP,sn->getInSet()));
-			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,INV_MAP,sn->getOutSet()));
+			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,INV_MAP,sn->getInSet()));
+			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,INV_MAP,sn->getOutSet()));
 		}
 	}
   // DEBUG(printBDD(LocationCount,INV_MAP,TopLevelPTS));
