@@ -34,44 +34,49 @@
 
 using namespace llvm;
 
-std::map<unsigned int,std::string*> *INV_MAP;
-LLVMContext *CONTEXT;
+// macros to make reverseMap function more readable
+#define insertName(m,r,f,s)                                             \
+  do {                                                                  \
+    ((r) = (m)->insert(std::pair<unsigned int,std::string*>((f),(s)))); \
+    assert((r).second);                                                 \
+  } while(0)
+#define ss(s) std::string(s)
 
-// TODO: append function name to disambiguate duplicate names in different functions
+// build reverseMap (for debugging purposes)
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m) {
 	std::pair<std::map<unsigned int,std::string*>::iterator,bool> ret;
 	std::map<unsigned int,std::string *> *inv = new std::map<unsigned int,std::string*>();
+	std::string *name;
 	// build inverse map (also check map is 1-to-1)
 	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
 		const Value *v = it->first;
-		ret = inv->insert(std::pair<unsigned int,std::string*>(it->second,new std::string(it->first->getName().data())));
-		assert(ret.second);
-		// if this is an alloca inst, add name for hidden inst
+		unsigned int id = it->second;
+		// if value is an instruction, add it's function's parent name
+		if (isa<Instruction>(v))
+			name = new ss(ss(cast<Instruction>(v)->getParent()->getParent()->getName())+"_"+ss(v->getName()));
+		else 
+			name = new ss(v->getName());
+		// add hidden names for each value type that has hidden values
 		if (isa<AllocaInst>(v)) { 
-			std::string *name = new std::string(std::string(v->getName()) + "_HEAP");
-			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
-			assert(ret.second);
+			insertName(inv,ret,id,name);
+			insertName(inv,ret,id+1,new ss(*name + "__HEAP"));
 		} else if (isa<GlobalVariable>(v)) {
-			std::string *name = new std::string(std::string(v->getName()) + "_VALUE");
-			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
-			assert(ret.second);
+			insertName(inv,ret,id,name);
+			insertName(inv,ret,id+1,new ss(*name + "__VALUE")); 
 		} else if (isa<Function>(v)) {
-			std::string *name = new std::string(std::string(v->getName()) + "_FUNCTION");
-			ret = inv->insert(std::pair<unsigned int,std::string*>(it->second+1,name)); 
-			assert(ret.second);
+			insertName(inv,ret,id,name);
+			insertName(inv,ret,id+1,new ss(*name + "__FUNCTION")); 
+		} else if (isa<Argument>(v)) {
+			insertName(inv,ret,id,name);
+			insertName(inv,ret,id+1,new ss(*name + "__ARGUMENT")); 
+		// otherwise, store regular name only
+		} else {
+			insertName(inv,ret,id,name);
 		}
 	}
   // store everything value 
-  inv->insert(std::pair<unsigned int,std::string*>(0,new std::string("everything")));
+	insertName(inv,ret,0,new ss("EVERYTHING"));
 	return inv;
-}
-
-void print_handler(std::ostream &o, int var) {
-	o << INV_MAP->at((unsigned int)var);
-}
-
-void file_handler(FILE* f, int var) {
-  fprintf(f,"%s",INV_MAP->at((unsigned int)var)->c_str());
 }
 
 void printReverseMap(std::map<unsigned int,std::string*> *m) {
@@ -92,6 +97,9 @@ private:
 	/// Value2Int - mapping from Value(Global Variable, Function, Local
 	/// Statement are included) to unique Id
 	std::map<const Value*, unsigned> Value2Int;
+
+	/// Int2Str - for debugging purposes
+	std::map<unsigned int,std::string*> *Int2Str;
 
 	/// FuncWorkList - Functions need to be processed
 	std::list<const Function*> FuncWorkList;
@@ -224,19 +232,20 @@ public:
 } // end of namespace
 
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
+	// build SEG
 	constructSEG(M);
+	// initialize value maps
 	LocationCount = initializeValueMap(M);
 	printValueMap();
-
-	CONTEXT = &M.getContext();
-	INV_MAP = reverseMap(&Value2Int);
-	printReverseMap(INV_MAP);
-	
+	Int2Str = reverseMap(&Value2Int);
+	printReverseMap(Int2Str);
+	// initialize bdd library
 	pointsToInit(1000,10000,LocationCount);
-
+	// initialize worklists
 	initializeFuncWorkList(M);
-	
+	// do algorithm	
 	doAnalysis(M);
+	// done
 	dbgs()<<"Analysis Done\n";
 	return false;
 }
@@ -423,7 +432,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 	
-      // DEBUG(printBDD(LocationCount,INV_MAP,TopLevelPTS));
+      DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
       // DEBUG(std::cout<<std::endl);
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
@@ -441,11 +450,11 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 
 			// print out sets
-			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,INV_MAP,sn->getInSet()));
-			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,INV_MAP,sn->getOutSet()));
+			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
+			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
-  // DEBUG(printBDD(LocationCount,INV_MAP,TopLevelPTS));
+  DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
   // DEBUG(std::cout<<std::endl);
 }
 

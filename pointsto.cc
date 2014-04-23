@@ -112,8 +112,15 @@ void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) 
 	unsigned int i, j;
 	for (i=0;i<max;++i) {
 		for (j=0;j<max;++j) {
-			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
-				dbgs() << *((*lt)[i]) << " -> " << *((*lt)[j]) << "\n";
+			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j))) {
+				std::string *s1,*s2;
+				s1 = lt->count(i) > 0 ? lt->at(i) : NULL;
+				s2 = lt->count(j) > 0 ? lt->at(j) : NULL;
+				if (s1 != NULL) dbgs() << *s1 << " -> ";
+				else dbgs() << "NOT FOUND: " << i << " -> ";
+				if (s2 != NULL) dbgs() << *s2 << "\n";
+				else dbgs() << "NOT FOUND: " << j << "\n";
+			}
 		}
 	}
 }
