@@ -429,6 +429,9 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
 	// iterate through each function and each worklist
+	// FIXME: shouldn't setup analysis by traversing stmtlist
+	// some instruction hasn't been added to stmtlist
+	// such as singleCopy, return
 	std::map<const Function*, StmtList*>::iterator list_iter;
 	std::list<SEGNode*>::iterator stmt_iter;
 	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
@@ -445,25 +448,18 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			// set SEGNode type and perform preprocessing
 			// FIXME: type is not needed in SEGNode 
 			if (isa<AllocaInst>(i)) {
-				sn->setType(0);
 				preprocessAlloc(sn,&Value2Int);
 			} else if (isa<PHINode>(i)) {
-				sn->setType(1);
 				preprocessCopy(sn,&Value2Int);
 			} else if (isa<LoadInst>(i)) {
-				sn->setType(2);
 				preprocessLoad(sn,&Value2Int);
 			} else if (isa<StoreInst>(i)) {
-				sn->setType(3);
 				preprocessStore(sn,&Value2Int);
 			} else if (isa<CallInst>(i)) {
-				sn->setType(4);
 				preprocessCall(sn,&Value2Int);
 			} else if (isa<ReturnInst>(i)) {
-				sn->setType(5);
 				// preprocessRet(sn,&Value2Int);
 			}  else if (isa<GetElementPtrInst>(i)) {
-				sn->setType(6);
 				// preprocessGEP(sn,Value2Int);
 			}
 		}
