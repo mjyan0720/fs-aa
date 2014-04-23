@@ -37,6 +37,7 @@ using namespace llvm;
 std::map<unsigned int,std::string*> *INV_MAP;
 LLVMContext *CONTEXT;
 
+// TODO: append function name to disambiguate duplicate names in different functions
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m) {
 	std::pair<std::map<unsigned int,std::string*>::iterator,bool> ret;
 	std::map<unsigned int,std::string *> *inv = new std::map<unsigned int,std::string*>();
@@ -108,6 +109,9 @@ private:
 	/// top level points to graph
 	bdd TopLevelPTS;
 
+	/// global values name set
+	bdd globalValueNames;
+
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
 		AU.addRequired<TargetLibraryInfo>();
@@ -140,9 +144,7 @@ private:
 	/// printValueMap - print out debug information of value mapping.
 	void printValueMap();
 
-  /// printBDD
-  void printBDD(bdd b);
-
+	/// add Int2Func mapping, build default points-to set for arguments
 	void preprocessFunction(const Function *f);
 
 public:
@@ -331,19 +333,6 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
 }
 
-void FlowSensitiveAliasAnalysis::printBDD(bdd b) {
-	unsigned int i, j;
-	for (i=0;i<LocationCount;++i) {
-		for (j=0;j<LocationCount;++j) {
-			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
-			//if (bdd_satcount(b & (fdd_ithvar(0,i) & fdd_ithvar(1,j))) > 0.0) 
-				dbgs() << *((*INV_MAP)[i]) << " -> " << *((*INV_MAP)[j]) << "\n";
-			//else
-			//	dbgs() << "None\n";
-		}
-	}
-}
-
 void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	SEG* seg = Func2SEG.at(f);
 	SEGNode *entry = seg->getEntryNode();
@@ -369,14 +358,14 @@ void processGlobal(unsigned int id, bdd *tpts) {
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	// preprocess all global variables
-	bdd gvarpts = bdd_false();
+	bdd globalValueNames = bdd_false();
 	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
 		processGlobal(Value2Int.at(v), &TopLevelPTS);
 		// add them to global variable pointer set
-		gvarpts = gvarpts | fdd_ithvar(0,Value2Int.at(v));
+		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
 	// iterate through each function and each worklist
 	std::map<const Function*, StmtList*>::iterator list_iter;
@@ -405,9 +394,9 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<StoreInst>(i)) {
 				sn->setType(3);
 				preprocessStore(sn,&Value2Int);
-			}  else if (isa<CallInst>(i)) {
+			} else if (isa<CallInst>(i)) {
 				sn->setType(4);
-				preprocessCall(sn,&Value2Int,gvarpts);
+				preprocessCall(sn,&Value2Int);
 			} else if (isa<ReturnInst>(i)) {
 				sn->setType(5);
 				// preprocessRet(sn,&Value2Int);
@@ -434,7 +423,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 	
-      // DEBUG(printBDD(TopLevelPTS));
+      // DEBUG(printBDD(LocationCount,INV_MAP,TopLevelPTS));
       // DEBUG(std::cout<<std::endl);
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
@@ -444,7 +433,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
 				case Instruction::Load:		processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
 				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
-				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG); break;
+				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG,globalValueNames); break;
 				case Instruction::Ret:
 				case Instruction::GetElementPtr:
 				case Instruction::Invoke:	break;//do nothing for test;
@@ -452,11 +441,11 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 
 			// print out sets
-			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(sn->getInSet()));
-			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(sn->getOutSet()));
+			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,INV_MAP,sn->getInSet()));
+			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,INV_MAP,sn->getOutSet()));
 		}
 	}
-  // DEBUG(printBDD(TopLevelPTS));
+  // DEBUG(printBDD(LocationCount,INV_MAP,TopLevelPTS));
   // DEBUG(std::cout<<std::endl);
 }
 

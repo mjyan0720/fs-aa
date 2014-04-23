@@ -108,6 +108,27 @@ bool pointsTo(bdd rel, unsigned int v1, unsigned int v2) {
 	return bdd_sat(rel & fdd_ithvar(0,v1) & fdd_ithvar(1,v2));
 }
 
+void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) {
+	unsigned int i, j;
+	for (i=0;i<max;++i) {
+		for (j=0;j<max;++j) {
+			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
+				dbgs() << *((*lt)[i]) << " -> " << *((*lt)[j]) << "\n";
+		}
+	}
+}
+
+void printBDD(unsigned int max, bdd b) {
+	unsigned int i, j;
+	for (i=0;i<max;++i) {
+		for (j=0;j<max;++j) {
+			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j)))
+				dbgs() << i << " -> " << j << "\n";
+		}
+	}
+}
+
+
 // append node to list if not present, return true if append occurred
 template <class T>
 bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
@@ -315,11 +336,9 @@ int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 }
 
 // ret bdd with pairs that originate either from an argument or a global variable
-bdd genFilterSet(bdd inset, bdd gvarpts, std::vector<bdd> *StaticData) {
-	bdd args = bdd_false();
-	for (unsigned int i = 0; i < StaticData->size()-1; i++) args = args | StaticData->at(i);
+bdd genFilterSet(bdd inset, bdd gvarpts, bdd argset) {
 	// if filter can point anywhere, return whole inset
-	bdd filter = (args | gvarpts) & inset;
+	bdd filter = (argset | gvarpts) & inset;
 	if (bdd_sat(filter & fdd_ithvar(1,0))) return inset;
 	else return filter;
 }
@@ -328,11 +347,7 @@ bdd matchingFunctions(const Value *funCall) {
 	return bdd_false();
 }
 
-std::map<const Function *,std::vector<bdd>*>* processTargets(std::vector<const Function*> *targets) {
-	return new std::map<const Function *,std::vector<bdd>*>();
-}
-
-int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gvarpts) {
+int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	CallData *cd = new CallData();
@@ -345,12 +360,12 @@ int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gva
 	cd->isDefinedFunc = im->count(funv) != 0;
 	// if function called is defined, store it's name
 	if (cd->isDefinedFunc) {
-		ArgIds->push_back(im->at(funv));
-		StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+		cd->funcId = im->at(funv);
+		cd->funcName = fdd_ithvar(0,cd->funcId);
 	// otherwise, store every possible function it could point to
 	} else {
-		ArgIds->push_back(0); 
-		StaticData->push_back(matchingFunctions(funv));
+		cd->funcId = 0;
+		cd->funcName = matchingFunctions(funv);
 		sn->setDefined(false);
 	}
 	// iterate through instruction arguments, set argids, generate static data for arguments
@@ -370,13 +385,13 @@ int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im, bdd gva
 		targets->push_back(fun);
 		cd->targets = targets;
 	}
-	// statically compute filter set
-	StaticData->push_back(genFilterSet(sn->getInSet(),gvarpts,StaticData));
+	// statically compute argset for filtering purposes
+	bdd argset = bdd_false();
+	for (unsigned int i = 0; i < StaticData->size(); i++)
+		argset = argset | StaticData->at(i);
+	cd->argset = argset;
 	// store type of this called function
-	if (funv->getType()->isPointerTy())
-		cd->functionType = fun->getType()->getPointerElementType();
-	else
-		cd->functionType = fun->getType();
+	cd->funcType = funv->getType()->getPointerElementType();
 	// set static data
 	sn->setStaticData(StaticData);
 	// set extra data
@@ -389,59 +404,71 @@ int processCall(bdd *tpts,
                 WorkList* swkl,
                 std::list<const Function*> *fwkl,
                 std::map<unsigned int,const Function*> *fm,
-                std::map<const Function *,SEG*> *sm) {
+                std::map<const Function *,SEG*> *sm,
+                bdd gvarpts) {
 	// declare some variables we need
 	std::map<unsigned int,const Function *>::iterator fmit;
 	std::vector<const Function*>::iterator fit;
 	std::vector<const Function*> *targets;
 	std::vector<bdd> *sd, *params;
-	bdd fpts, filter;
+	bdd fpts, fn, filter;
 	unsigned int fv;
 	CallData *cd;	
 	Type *ft;
 
-	fv = sn->getArgIds()->at(0);
-	cd = dynamic_cast<CallData*>(sn->getExtraData());
+	fv = cd->funcId;
+	//cd = dynamic_cast<CallData*>(sn->getExtraData());
+	cd = static_cast<CallData*>(sn->getExtraData());
 	sd = sn->getStaticData();
-	ft = cd->functionType;
+	ft = cd->funcType;
+	fn = cd->funcName;
+	filter = genFilterSet(sn->getInSet(),gvarpts,cd->argset);
 
+	dbgs() << "FUNTYPE: " << (*ft) << "\n";
 	// if func is pointer, dynamically compute its targets
 	if (cd->isPtr) {
 		targets = new std::vector<const Function*>();
 		// if function is defined and doesn't point everywhere, compute it's points-to set
-		if (fv && !pointsTo(*tpts,fv,0)) fpts = bdd_restrict(*tpts,fdd_ithvar(0,fv));
+		if (fv && !pointsTo(*tpts,fv,0)) fpts = bdd_restrict(*tpts,fn);
 		// otherwise, 
 		else fpts = bdd_restrict(*tpts,fdd_ithset(0));
 		// find which functions pointer points-to and types agree, add to targets
 		for (fmit = fm->begin(); fmit != fm->end(); ++fmit) {
+			dbgs() << "TARGETTYPE: " << *(fmit->second->getFunctionType()) << "\n";
 			if (bdd_sat(fpts & fdd_ithvar(1,fmit->first))) {
 				if (fmit->second->getFunctionType() == ft) {
+					dbgs() << "Func added\n";
 					targets->push_back(fmit->second);
 				} else {
 					dbgs() << "Types: " << ft << " and " << fmit->second->getFunctionType() << " do not agree";
 				}	
-			}
+			} else dbgs() << "Does not point to function\n";
 		}
 	// else get its targets statically
 	} else {
+		dbgs() << "NOT PTR\n";
 		// if this is only a declaration, fail
 		// TODO: change this policy to something more robust
-		assert(cd->targets->at(0)->isDeclaration());
+		assert(!cd->targets->at(0)->isDeclaration());
 		targets = cd->targets;
 	}
 
+	dbgs() << "ENUMERATE TARGETS\n";
 	// foreach target
 	for (fit = targets->begin(); fit != targets->end(); ++fit) {
-
-		// for each argument, add parameter argument pair
+		// get entry node and params, perform sanity checks
+		dbgs() << "TARGET: " << *(*fit) << "\n";
 		SEGNode *entry = sm->at(*fit)->getEntryNode();
 		params = entry->getStaticData();
-		for (unsigned int i = 0; i < sd->size()-1; i++) {
+		assert(params != NULL && sd != NULL);
+		assert(params->size() == sd->size());
+		// for each argument, add parameter argument pair
+		for (unsigned int i = 0; i < sd->size(); i++) {
 			bdd param = params->at(i);
-			bdd arg = sd->at(i+1);
+			bdd arg = sd->at(i);
 			bdd newpts;
 			// if argument is defined, add p -> Top(a)
-			if (sn->getArgIds()->at(i+1))
+			if (sn->getArgIds()->at(i))
 				newpts = param & bdd_restrict(*tpts,arg);
 			// else, add p -> everything
 			else newpts = param & fdd_ithset(1);
