@@ -463,6 +463,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
 			// DEBUG(fdd_printset(TopLevelPTS));
+
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
@@ -470,6 +471,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG,globalValueNames); break;
 				case Instruction::Ret:
+				//if it's self-copy instruction, don't need process instruction itself;
+				//propagateAddrTaken if has successors
+				//only has one definition, so it won't be merge point for top, don't need
+				//to propagateTop.
 				case Instruction::GetElementPtr:
 				case Instruction::Invoke:	break;//do nothing for test;
 				default: assert(false && "Out of bounds Instr Type");
