@@ -29,6 +29,7 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	Extra = NULL;
 #ifdef ENABLE_OPT_1
 	SingleCopy = false;
+	Source = NULL;
 #endif
 }
 
@@ -42,6 +43,7 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 	Extra = NULL;
 #ifdef ENALBE_OPT_1
 	SingleCopy = isa<GetElementPtrInst>(inst) | isa<BitCastInst>(inst);
+	Source = NULL;
 #endif
 }
 

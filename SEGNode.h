@@ -95,7 +95,14 @@ private:
 	/// ExtraData - field stores extradata for instructions that need it
 	ExtraData *Extra;
 public:
-	SEGNode() { Defined = true; Extra = NULL; }
+	SEGNode() {
+		Defined = true;
+		Extra = NULL;
+#ifdef ENABLE_OPT_1
+		SingleCopy=false;
+		Source=NULL;
+#endif
+	}
 
 	explicit SEGNode(SEG *parent);
 
