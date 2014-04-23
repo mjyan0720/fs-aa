@@ -24,6 +24,8 @@
 #include <set>
 #include <vector>
 
+#define ENABLE_OPT_1
+
 namespace llvm {
 
 class SEGNode;
@@ -41,7 +43,15 @@ private:
 	/// AddrTaken - Indicate whether this node define or use an address
 	/// taken variable
 	bool AddrTaken;
+#ifdef ENABLE_OPT_1
+	/// SingleCopy - Indicate whether this instruction is a copy instruction
+	/// and the right hand side only contains one variable
+	bool SingleCopy;
 
+	/// Source - when this node is a singlecopy, indicate the source of
+	/// copy comes from. It maybe a chain, source is the header of it.
+	const Value *Source;
+#endif
 	/// Parent - Indicate SEG this node resides in.
 	SEG *Parent;
 
@@ -85,7 +95,14 @@ private:
 	/// ExtraData - field stores extradata for instructions that need it
 	ExtraData *Extra;
 public:
-	SEGNode() { Defined = true; Extra = NULL; }
+	SEGNode() {
+		Defined = true;
+		Extra = NULL;
+#ifdef ENABLE_OPT_1
+		SingleCopy=false;
+		Source=NULL;
+#endif
+	}
 
 	explicit SEGNode(SEG *parent);
 
@@ -99,6 +116,12 @@ public:
 	const Instruction *getInstruction() const { return Inst; }
 	bool	isnPnode() { return IsnPnode; }
 	bool	addrTaken() {	return AddrTaken;	}
+#ifdef ENABLE_OPT_1
+	bool singleCopy() {	return SingleCopy;	}
+	void unsetSingleCopy()	{	SingleCopy=false;	}
+	const Value *getSource()	{	return Source;	}
+	void setSource(const Value* v)	{	Source = v;	}
+#endif
 	SEG *getParent() { return Parent; }
 
 	/// Access Extra Information

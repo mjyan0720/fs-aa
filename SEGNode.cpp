@@ -27,6 +27,10 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	Defined = true;
 	AddrTaken = true;
 	Extra = NULL;
+#ifdef ENABLE_OPT_1
+	SingleCopy = false;
+	Source = NULL;
+#endif
 }
 
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
@@ -37,6 +41,10 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) | 
 		    isa<ReturnInst>(inst) | isa<InvokeInst>(inst);
 	Extra = NULL;
+#ifdef ENABLE_OPT_1
+	SingleCopy = isa<GetElementPtrInst>(inst) | isa<BitCastInst>(inst);
+	Source = NULL;
+#endif
 }
 
 SEGNode::~SEGNode() {

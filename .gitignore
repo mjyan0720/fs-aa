@@ -2,3 +2,8 @@ Release+Asserts/
 Debug+Asserts/
 .*
 *.bc
+Note
+*.aa.ll
+*.aa.bc
+*.check.ll
+*.check.bc

@@ -108,15 +108,59 @@ void SEG::initialize() {
 			sn->addUser(useSN);
 			DEBUG(errs()<<"Set uses: "<<*sn<<" --> "<<*useSN<<"\n");
 		}
+#ifdef ENABLE_OPT_1
+		// detect whether there exists a singlecopy cycle
+		// if exists, break it by unset singlecopy of the header
+		// otherwise, set source for singlecopy
+		SEGNode *header = sn;
+		const Value *from = NULL;
+		while(sn->singleCopy()==true && sn->getSource()==NULL){
+			const Instruction *I = sn->getInstruction();
+			if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
+				from = inst->getPointerOperand();
+			}
+			// possiblly use Argument at right hand side
+			if(isa<Instruction>(from)==false){
+				header->setSource(from);
+				break;
+			}
+			sn = inst2sn[cast<Instruction>(from)];
+			if(sn == header){//a cycle detected, impossible to have cycle
+				header->unsetSingleCopy();
+				break;
+			} else if(sn->singleCopy()==false){
+				header->setSource(from);
+			} else if(sn->getSource()!=NULL){
+				header->setSource(sn->getSource());
+			}
+		}
+#endif
 	}
 	dump();
 }
+
+
+#ifdef ENABLE_OPT_1
+void SEG::pruneSingleCopy(std::vector<SEGNode *> SingleCopySNs){
+	for(std::vector<SEGNode *>::iterator vi=SingleCopySNs.begin(), ve=SingleCopySNs.end(); vi!=ve; ++vi){
+		SEGNode *sn = *vi;
+		if(sn->pred_size()==0 && sn->succ_size()==0){
+			sn->eraseFromParent();
+		}
+	}
+}
+#endif
+
 
 void SEG::applyTransformation(){
 	std::set<SEGNode*> WorkList;
 	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni){
 		SEGNode *sn = &*sni;
+#ifdef ENABLE_OPT_1
+		if(sn->isnPnode()==false | sn->addrTaken()==false | sn->singleCopy()==true){
+#else
 		if(sn->isnPnode()==false | sn->addrTaken()==false){
+#endif
 			WorkList.insert(sn);
 		}
 	}

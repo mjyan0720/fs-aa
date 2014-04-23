@@ -32,6 +32,7 @@
 #include <list>
 #include <algorithm>
 
+
 using namespace llvm;
 
 // macros to make reverseMap function more readable
@@ -50,6 +51,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 	// build inverse map (also check map is 1-to-1)
 	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
 		const Value *v = it->first;
+		
 		unsigned int id = it->second;
 		// if value is an instruction or argument, add it's function's parent name
 		if (isa<Instruction>(v))
@@ -59,6 +61,18 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		else 
 			name = new ss(v->getName());
 		// add hidden names for each value type that has hidden values
+
+#ifdef ENABLE_OPT_1
+		// in the opt1 version, they are not assigned an id, they share the id with
+		// source value used at right hand side
+		// insert will fail.
+		if (isa<GetElementPtrInst>(v) | isa<BitCastInst>(v))
+			continue;
+#endif	
+//		ret = inv->insert(std::pair<unsigned int,std::string*>(it->second,new std::string(it->first->getName().data())));
+//		assert(ret.second);
+		// if this is an alloca inst, add name for hidden inst
+
 		if (isa<AllocaInst>(v)) { 
 			insertName(inv,ret,id,name);
 			insertName(inv,ret,id+1,new ss(*name + "__HEAP"));
@@ -75,6 +89,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		} else {
 			insertName(inv,ret,id,name);
 		}
+
 	}
   // store everything value 
 	insertName(inv,ret,0,new ss("EVERYTHING"));
@@ -291,6 +306,10 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	/// map local statements
 	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		SEG *seg = mi->second;
+#ifdef ENABLE_OPT_1
+		std::vector<SEGNode *> SingleCopySNs;
+		SingleCopySNs.clear();
+#endif
 		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
 			SEGNode *sn = &*sni;
 			if(sn->isnPnode()==false)
@@ -309,12 +328,33 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 				Value *v = inst->getOperand(0);
 				if(isa<Function>(v))
 					continue;	
-			}		
+			}
+#ifdef ENABLE_OPT_1
+			if(sn->singleCopy()){
+				SingleCopySNs.push_back(sn);
+				DEBUG(dbgs()<<"skip:\t"<<*sn<<"\n");
+				continue;
+			}
+#endif
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
 			assert( chk.second && "Value Id should be unique");
 			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst)) id++;
 		}
+#ifdef ENABLE_OPT_1
+		for(std::vector<SEGNode *>::iterator vi=SingleCopySNs.begin(), ve=SingleCopySNs.end(); vi!=ve; ++vi){
+			SEGNode *sn = *vi;
+			const Instruction *inst = sn->getInstruction();
+			const Value *from = sn->getSource();
+			assert( from!=NULL && "must has a source value");
+			std::map<const Value*, unsigned>::iterator mi = Value2Int.find(from);
+			assert( mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
+			DEBUG(dbgs()<<"assign "<<mi->second<<" to\t"<<*sn<<"\n");
+			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, mi->second) );
+			assert( chk.second && "Value Id should be unique");
+		}
+		seg->pruneSingleCopy(SingleCopySNs);
+#endif
 	}
 	return id;
 }
@@ -389,8 +429,9 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
 			SEGNode *sn = *stmt_iter;
 			const Instruction *i = sn->getInstruction();
-			// set SEGNode id if not StoreInst
-			if (!isa<StoreInst>(i)) sn->setId(Value2Int[sn->getInstruction()]);
+			// set SEGNode id if exists in Value Map
+			if (Value2Int.find(sn->getInstruction())!=Value2Int.end())
+				sn->setId(Value2Int[sn->getInstruction()]);
 			// set SEGNode type and perform preprocessing
 			// FIXME: type is not needed in SEGNode 
 			if (isa<AllocaInst>(i)) {
@@ -439,6 +480,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
 			// DEBUG(fdd_printset(TopLevelPTS));
+
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
@@ -446,6 +488,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
 				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG,globalValueNames); break;
 				case Instruction::Ret:
+				//if it's self-copy instruction, don't need process instruction itself;
+				//propagateAddrTaken if has successors
+				//only has one definition, so it won't be merge point for top, don't need
+				//to propagateTop.
 				case Instruction::GetElementPtr:
 				case Instruction::Invoke:	break;//do nothing for test;
 				default: assert(false && "Out of bounds Instr Type");
