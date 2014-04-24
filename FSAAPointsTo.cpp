@@ -10,7 +10,7 @@
 #include <vector>
 #include "bdd.h"
 #include "fdd.h"
-#include "pointsto.h"
+#include "FSAAnalysis.h"
 #include "llvm/IR/Instructions.h"
 
 /*
@@ -70,8 +70,6 @@
  * abstraction layer for general relations?
  * use global variable to determine number of dimensions, etc...
  */
-
-using namespace llvm;
 
 static unsigned int POINTSTO_MAX      = 0;
 static bddPair* LPAIR                 = NULL;
