@@ -137,8 +137,9 @@ bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
 	return i == wkl->end();
 }
 
-bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
-	std::list<SEGNode*> *wkl = swkl->at(f);
+bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn) {
+	const Function *f = sn->getParent()->getFunction();
+	std::list<SEGNode*> *wkl = StmtWorkList.at(f);
 	bool changed = false;
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != (*oldtpts | *newpart)){
@@ -156,9 +157,10 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, S
 	return changed;
 }
 
-bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
+bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 	bdd oldink, newink;
-	std::list<SEGNode*> *wkl = swkl->at(f);
+	const Function *f = sn->getParent()->getFunction();
+	std::list<SEGNode*> *wkl = StmtWorkList.at(f);
 	bool changed = false;
 	// add all changed successors to the worklist
 	for(SEGNode::const_succ_iterator i = sn->succ_begin(); i != sn->succ_end(); ++i) {
@@ -181,7 +183,7 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn, WorkList* swkl,
 }
 
 // NOTE: alloc should never have undefined arguments
-int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	// store argument ids
@@ -193,7 +195,7 @@ int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn, std::map<const Valu
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 	const PHINode *phi = cast<PHINode>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -204,8 +206,8 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn, std::map<const Value
 		// if argument out-of-range, store id 0
 		Value *v = oit->get();
 		//v->dump();
-		if (im->count(v) != 0){
-			id = im->at(v);
+		if (Value2Int.count(v) != 0){
+			id = Value2Int.at(v);
 		} else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
@@ -225,15 +227,15 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn, std::map<const Value
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn) {
 	const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	const Value *v = ld->getPointerOperand();
 	// check if argument is defined
-	sn->setDefined(im->count(v) != 0);
+	sn->setDefined(Value2Int.count(v) != 0);
 	// store static argument id, or zero if it is out-of-range
-	ArgIds->push_back(sn->getDefined() ? im->at(v) : 0);
+	ArgIds->push_back(sn->getDefined() ? Value2Int.at(v) : 0);
 	sn->setArgIds(ArgIds);
 	// store static bdd data
 	if (sn->getDefined()) {
@@ -247,7 +249,7 @@ int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn, std::map<const Value
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -256,15 +258,15 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn, std::map<const Valu
 	p = sr->getPointerOperand();
 	v = sr->getValueOperand();
 	// check if arguments are defined
-	pd = im->count(p) != 0;
-	vd = im->count(v) != 0;
+	pd = Value2Int.count(p) != 0;
+	vd = Value2Int.count(v) != 0;
 	sn->setDefined(pd & vd);
 	
 	//sn->dump();
 	//dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n";
 	// store ids for argument values, or 0 for undefined
-	ArgIds->push_back(pd ? im->at(p) : 0);
-	ArgIds->push_back(vd ? im->at(v) : 0);
+	ArgIds->push_back(pd ? Value2Int.at(p) : 0);
+	ArgIds->push_back(vd ? Value2Int.at(v) : 0);
 	sn->setArgIds(ArgIds);
 	// store bdds for corresponding values, or everything for undefined
 	StaticData->push_back(pd ? fdd_ithvar(0,ArgIds->at(0)) : fdd_ithset(0));
@@ -273,18 +275,18 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn, std::map<const Valu
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processAlloc(bdd *tpts, SEGNode *sn) {
 	bdd alloc;
 	// add pair to top-level pts
 	alloc = sn->getStaticData()->at(0);
-	propagateTopLevel(tpts,&alloc,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&alloc,sn);
 	// propagate addr taken
 	sn->setOutSet(sn->getInSet());
-	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn);
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	bdd bddx, vs, qt, newpts;
 	// if defined, x points to quantifying over bdd + vs choices for all v values
 	if (sn->getDefined()) {
@@ -302,14 +304,14 @@ int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn, WorkList* sw
 	else
 		llvm::dbgs() << "not empty\n";
 */	// store new top-level points-to set
-	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&newpts,sn);
 	// propagate addr taken
 	sn->setOutSet(sn->getInSet());
-	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn);
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
+int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 	bdd bddx, bddy, topy, ky, qt, newpts;
 	// if defined, do standard lookup
 	if (sn->getDefined()) {
@@ -324,14 +326,14 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn, WorkList *sw
 	// else, x points everywhere
 	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
-	propagateTopLevel(tpts,&newpts,sn,swkl,sn->getParent()->getFunction());
+	propagateTopLevel(tpts,&newpts,sn);
 	// propagate addr taken
 	sn->setOutSet(sn->getInSet());
-	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn);
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	bdd bddx, bddy, topx, topy, outkpts;
 	// lookup where x points, get PTop(x)
 	if (sn->getArgIds()->at(0)) {
@@ -352,7 +354,7 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn, WorkList* s
 	else outkpts = sn->getInSet();
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
-	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn);
 	return 0;
 }
 
@@ -368,7 +370,7 @@ bdd matchingFunctions(const Value *funCall) {
 	return bdd_false();
 }
 
-int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	CallData *cd = new CallData();
@@ -378,10 +380,10 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn, std::map<const Value
 	unsigned int id;
 	// check if this function is a pointer and if it is defined
 	cd->isPtr = (fun == NULL);
-	cd->isDefinedFunc = im->count(funv) != 0;
+	cd->isDefinedFunc = Value2Int.count(funv) != 0;
 	// if function called is defined, store it's name
 	if (cd->isDefinedFunc) {
-		cd->funcId = im->at(funv);
+		cd->funcId = Value2Int.at(funv);
 		cd->funcName = fdd_ithvar(0,cd->funcId);
 	// otherwise, store every possible function it could point to
 	} else {
@@ -393,7 +395,7 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn, std::map<const Value
 	for (unsigned int i = 0; i < ci->getNumArgOperands(); i++) {
 		// if argument out-of-range, store id 0
 		Value *v = ci->getArgOperand(i);
-		if (im->count(v) != 0) id = im->at(v); 
+		if (Value2Int.count(v) != 0) id = Value2Int.at(v); 
 		else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
@@ -422,8 +424,6 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn, std::map<const Value
 
 int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
                 SEGNode *sn,
-                WorkList* swkl,
-                std::list<const Function*> *fwkl,
                 std::map<unsigned int,const Function*> *fm,
                 std::map<const Function *,SEG*> *sm,
                 bdd gvarpts) {
@@ -491,6 +491,7 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 		dbgs() << "TARGET: " << *(*fit) << "\n";
 		SEGNode *entry = sm->at(*fit)->getEntryNode();
 		params = entry->getStaticData();
+		assert(entry->getParent()->getFunction() == *fit && "Unequal functions!");
 		assert(params != NULL && sd != NULL);
 		assert(params->size() == sd->size());
 		// for each argument, add parameter argument pair
@@ -505,28 +506,28 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 			else newpts = param & fdd_ithset(1);
 			// propagate top level for callee
 			// TODO: do I need to change the propagatation function?
-			propagateTopLevel(tpts,&newpts,entry,swkl,*fit);
+			propagateTopLevel(tpts,&newpts,entry);
 		}
 		// get SEG entry node's inset
 		entry->setInSet(entry->getInSet() | filter);
 		entry->setOutSet(entry->getInSet());
 		// propagate using address taken on entry node
-		if (propagateAddrTaken(entry,swkl,*fit))
-				appendIfAbsent<const Function*>(fwkl,*fit);
+		if (propagateAddrTaken(entry))
+				appendIfAbsent<const Function*>(&FuncWorkList,*fit);
 	}	
 
 	// set outset to inset - filter
 	sn->setOutSet(sn->getInSet() - filter);
 	// propagate address taken
-	propagateAddrTaken(sn,swkl,sn->getParent()->getFunction());
+	propagateAddrTaken(sn);
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	// iterate through callsite list (list of segnodes)
 	// for each segnode:
 		// set the inset of callsite to include my outset

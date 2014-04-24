@@ -179,26 +179,25 @@ public:
 	//copy from noaa -- end
 
 	// Preprocess functions perform all static variable lookups for these nodes
-	int preprocessAlloc(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
-	int preprocessCopy(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-	int preprocessLoad(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-	int preprocessStore(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
-	int preprocessCall(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-	int preprocessRet(llvm::SEGNode *sn,   std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessAlloc(llvm::SEGNode *sn);
+	int preprocessCopy(llvm::SEGNode *sn);
+	int preprocessLoad(llvm::SEGNode *sn);
+	int preprocessStore(llvm::SEGNode *sn);
+	int preprocessCall(llvm::SEGNode *sn);
+	int preprocessRet(llvm::SEGNode *sn);
 
 	// Main process functions propagate pointer information through the BDDs
-	int processAlloc(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
-	int processCopy(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
-	int processLoad(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
-	int processStore(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
-	int processCall(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl, std::list<const llvm::Function*> *fwkl,
-	                std::map<unsigned int,const llvm::Function*> *fm, std::map<const llvm::Function *,llvm::SEG*> *sm,
-	                bdd gvarpts);
-	int processRet(bdd *tpts,   llvm::SEGNode *sn, WorkList* swkl);
+	int processAlloc(bdd *tpts, llvm::SEGNode *sn); 
+	int processCopy(bdd *tpts,  llvm::SEGNode *sn); 
+	int processLoad(bdd *tpts,  llvm::SEGNode *sn); 
+	int processStore(bdd *tpts, llvm::SEGNode *sn); 
+	int processCall(bdd *tpts, llvm::SEGNode *sn, std::map<unsigned int,const llvm::Function*> *fm,
+                  std::map<const llvm::Function *,llvm::SEG*> *sm, bdd gvarpts);
+	int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
-	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
-	bool propagateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
+	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn);
+	bool propagateAddrTaken(llvm::SEGNode *sn);
 };
 
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);

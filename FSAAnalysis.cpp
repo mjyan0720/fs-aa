@@ -250,15 +250,15 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			// set SEGNode type and perform preprocessing
 			// FIXME: type is not needed in SEGNode 
 			if (isa<AllocaInst>(i)) {
-				preprocessAlloc(sn,&Value2Int);
+				preprocessAlloc(sn);
 			} else if (isa<PHINode>(i)) {
-				preprocessCopy(sn,&Value2Int);
+				preprocessCopy(sn);
 			} else if (isa<LoadInst>(i)) {
-				preprocessLoad(sn,&Value2Int);
+				preprocessLoad(sn);
 			} else if (isa<StoreInst>(i)) {
-				preprocessStore(sn,&Value2Int);
+				preprocessStore(sn);
 			} else if (isa<CallInst>(i)) {
-				preprocessCall(sn,&Value2Int);
+				preprocessCall(sn);
 			} else if (isa<ReturnInst>(i)) {
 				// preprocessRet(sn,&Value2Int);
 			}  else if (isa<GetElementPtrInst>(i)) {
@@ -290,11 +290,11 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			// DEBUG(fdd_printset(TopLevelPTS));
 
 			switch(sn->getInstruction()->getOpcode()) {
-				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn,&StmtWorkList); break;
-				case Instruction::PHI:		processCopy(&TopLevelPTS,sn,&StmtWorkList);  break;
-				case Instruction::Load:		processLoad(&TopLevelPTS,sn,&StmtWorkList);  break;
-				case Instruction::Store:	processStore(&TopLevelPTS,sn,&StmtWorkList); break;
-				case Instruction::Call:   processCall(&TopLevelPTS,sn,&StmtWorkList,&FuncWorkList,&Int2Func,&Func2SEG,globalValueNames); break;
+				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn); break;
+				case Instruction::PHI:		processCopy(&TopLevelPTS,sn);  break;
+				case Instruction::Load:		processLoad(&TopLevelPTS,sn);  break;
+				case Instruction::Store:	processStore(&TopLevelPTS,sn); break;
+				case Instruction::Call:   processCall(&TopLevelPTS,sn,&Int2Func,&Func2SEG,globalValueNames); break;
 				case Instruction::Ret:
 				//if it's self-copy instruction, don't need process instruction itself;
 				//propagateAddrTaken if has successors
