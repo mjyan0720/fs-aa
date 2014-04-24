@@ -51,7 +51,6 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 	// build inverse map (also check map is 1-to-1)
 	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
 		const Value *v = it->first;
-		
 		unsigned int id = it->second;
 		// if value is an instruction or argument, add it's function's parent name
 		if (isa<Instruction>(v))
@@ -60,8 +59,6 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(v->getName()));
 		else 
 			name = new ss(v->getName());
-		// add hidden names for each value type that has hidden values
-
 #ifdef ENABLE_OPT_1
 		// in the opt1 version, they are not assigned an id, they share the id with
 		// source value used at right hand side
@@ -69,10 +66,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		if (isa<GetElementPtrInst>(v) | isa<BitCastInst>(v))
 			continue;
 #endif	
-//		ret = inv->insert(std::pair<unsigned int,std::string*>(it->second,new std::string(it->first->getName().data())));
-//		assert(ret.second);
-		// if this is an alloca inst, add name for hidden inst
-
+		// add hidden names for each value type that has hidden values
 		if (isa<AllocaInst>(v)) { 
 			insertName(inv,ret,id,name);
 			insertName(inv,ret,id+1,new ss(*name + "__HEAP"));
@@ -89,7 +83,6 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		} else {
 			insertName(inv,ret,id,name);
 		}
-
 	}
   // store everything value 
 	insertName(inv,ret,0,new ss("EVERYTHING"));

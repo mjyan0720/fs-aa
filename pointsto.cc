@@ -143,23 +143,29 @@ bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
 	return i == wkl->end();
 }
 
-void propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
+bool propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
 	std::list<SEGNode*> *wkl = swkl->at(f);
+	bool changed = false;
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != (*oldtpts | *newpart)){
 		dbgs() << "PROPAGATE TOPLEVEL FOR:\t"<<*sn<<"\n";
 		// only append to worklist if absent
 		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
-			if (appendIfAbsent<SEGNode*>(wkl,*i))
+			if (appendIfAbsent<SEGNode*>(wkl,*i)) {
+				changed = true;
 				dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
+			}
 	}
 	// update old
 	*oldtpts = *oldtpts | *newpart;
+	// return true if the worklist was changed
+	return changed;
 }
 
-void propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
+bool propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 	bdd oldink, newink;
 	std::list<SEGNode*> *wkl = swkl->at(f);
+	bool changed = false;
 	// add all changed successors to the worklist
 	for(SEGNode::const_succ_iterator i = sn->succ_begin(); i != sn->succ_end(); ++i) {
 		SEGNode *succ = *i;
@@ -169,11 +175,15 @@ void propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 		// append to worklist if inset changed and not already in worklist
 		if (oldink != newink){
 			dbgs()<<"PROPAGATE ADDRTAKEN FOR:\t"<<*sn<<"\n";
-			if (appendIfAbsent<SEGNode*>(wkl,succ))
+			if (appendIfAbsent<SEGNode*>(wkl,succ)) {
+				changed = true;
 				dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
+			}
 			succ->setInSet(newink);
 		}
 	}
+	// return true if the worklist was changed
+	return changed;
 }
 
 // NOTE: alloc should never have undefined arguments
@@ -439,7 +449,8 @@ int processCall(bdd *tpts,
 	sd = sn->getStaticData();
 	ft = cd->funcType;
 	fn = cd->funcName;
-	filter = genFilterSet(sn->getInSet(),gvarpts,cd->argset);
+	//filter = genFilterSet(sn->getInSet(),gvarpts,cd->argset);
+	filter = sn->getInSet();
 
 	dbgs() << "FUNTYPE: " << (*ft) << "\n";
 	// if func is pointer, dynamically compute its targets
@@ -502,19 +513,12 @@ int processCall(bdd *tpts,
 			// TODO: do I need to change the propagatation function?
 			propagateTopLevel(tpts,&newpts,entry,swkl,*fit);
 		}
-
 		// get SEG entry node's inset
-		std::list<SEGNode*>* wkl = swkl->at(*fit);
-		bdd inset = entry->getInSet();
-		// if inset has changed and worklist has changed, reinsert entry node in worklist
-		if (inset != (inset | filter)) {
-			if (appendIfAbsent<SEGNode*>(wkl,entry)) {
-				dbgs() << "CALL: APPENDED " << *entry << " TO " << (*fit)->getName() << "'S WORKLIST\n";
+		entry->setInSet(entry->getInSet() | filter);
+		entry->setOutSet(entry->getInSet());
+		// propagate using address taken on entry node
+		if (propagateAddrTaken(entry,swkl,*fit))
 				appendIfAbsent<const Function*>(fwkl,*fit);
-			}
-		} else dbgs() << "CALL: NOTHING APPENDED\n";
-		// set target function's entry node's inset
-		entry->setInSet(inset | filter);
 	}	
 
 	// set outset to inset - filter
