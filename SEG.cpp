@@ -39,8 +39,6 @@ void SEG::dump() const {
 	}
 }
 
-
-
 void SEG::initialize() {
 	std::map<const Instruction*, SEGNode*> inst2sn;
 
@@ -251,6 +249,18 @@ void SEG::applyTransformation(){
 
 SEG::~SEG() {
 	LeakDetector::removeGarbageObject(this);
+}
+
+// build Inst* to SEGNode * map
+void SEG::initializeInstNodeMap() {
+	std::pair<std::map<const Instruction*,SEGNode*>::iterator,bool> ret;
+	// iterate through every node
+	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni) {
+		SEGNode *sn = &*sni;
+		const Instruction *i = sn->getInstruction();
+		ret = Inst2Node.insert(std::pair<const Instruction*,SEGNode*>(i,sn));
+		assert(ret.second);
+	}
 }
 
 /*

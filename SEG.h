@@ -36,6 +36,8 @@ private:
 	/// List of SEGNode in function
 	typedef ilist<SEGNode> SEGNodeListType;
 	SEGNodeListType SEGNodes;
+	typedef std::map<const Instruction*,SEGNode*> InstNodeMap;
+	InstNodeMap Inst2Node;
 
 	void initialize();
 	void applyTransformation();
@@ -48,6 +50,8 @@ public:
 	const Function *getFunction() { return Fn; }
 	bool isDeclaration() { return IsDeclaration; }
 
+	/// build Inst2Node map
+	void initializeInstNodeMap();	
 
 	SEGNode *getEntryNode() { return EntryNode; }
 	/// viewSEG - this function is used for debugger.
