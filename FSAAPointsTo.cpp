@@ -137,7 +137,7 @@ bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
 	return i == wkl->end();
 }
 
-bool propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
+bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, const Function *f) {
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	bool changed = false;
 	// if old and new are different, add all users to worklist
@@ -156,7 +156,7 @@ bool propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn, WorkList* swkl, 
 	return changed;
 }
 
-bool propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
+bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 	bdd oldink, newink;
 	std::list<SEGNode*> *wkl = swkl->at(f);
 	bool changed = false;
@@ -181,7 +181,7 @@ bool propagateAddrTaken(SEGNode *sn, WorkList* swkl, const Function *f) {
 }
 
 // NOTE: alloc should never have undefined arguments
-int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	// store argument ids
@@ -193,7 +193,7 @@ int preprocessAlloc(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const PHINode *phi = cast<PHINode>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -225,7 +225,7 @@ int preprocessCopy(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const LoadInst *ld = cast<LoadInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -247,7 +247,7 @@ int preprocessLoad(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	const StoreInst *sr = cast<StoreInst>(sn->getInstruction());
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
@@ -273,7 +273,7 @@ int preprocessStore(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd alloc;
 	// add pair to top-level pts
 	alloc = sn->getStaticData()->at(0);
@@ -284,7 +284,7 @@ int processAlloc(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	return 0;
 }
 
-int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd bddx, vs, qt, newpts;
 	// if defined, x points to quantifying over bdd + vs choices for all v values
 	if (sn->getDefined()) {
@@ -309,7 +309,7 @@ int processCopy(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	return 0;
 }
 
-int processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
+int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
 	bdd bddx, bddy, topy, ky, qt, newpts;
 	// if defined, do standard lookup
 	if (sn->getDefined()) {
@@ -331,7 +331,7 @@ int processLoad(bdd *tpts, SEGNode *sn, WorkList *swkl) {
 	return 0;
 }
 
-int processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	bdd bddx, bddy, topx, topy, outkpts;
 	// lookup where x points, get PTop(x)
 	if (sn->getArgIds()->at(0)) {
@@ -368,7 +368,7 @@ bdd matchingFunctions(const Value *funCall) {
 	return bdd_false();
 }
 
-int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	CallData *cd = new CallData();
@@ -420,7 +420,7 @@ int preprocessCall(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int processCall(bdd *tpts,
+int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
                 SEGNode *sn,
                 WorkList* swkl,
                 std::list<const Function*> *fwkl,
@@ -522,11 +522,11 @@ int processCall(bdd *tpts,
 	return 0;
 }
 
-int preprocessRet(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
+int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn, std::map<const Value*,unsigned int> *im) {
 	return 0;
 }
 
-int processRet(bdd *tpts, SEGNode *sn, WorkList* swkl) {
+int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn, WorkList* swkl) {
 	// iterate through callsite list (list of segnodes)
 	// for each segnode:
 		// set the inset of callsite to include my outset

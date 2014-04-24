@@ -30,8 +30,6 @@ struct CallerEntry { NodeVec Calls;	};
 typedef std::map<const Function*,CallerEntry*> CallerMap;
 typedef std::map<const Function*, std::list<SEGNode*>*> WorkList;
 
-namespace {
-
 class FlowSensitiveAliasAnalysis : public ModulePass, public AliasAnalysis {
 private:
 
@@ -180,10 +178,6 @@ public:
 	}
 	//copy from noaa -- end
 
-};
-
-} // end of namespace
-
 	// Preprocess functions perform all static variable lookups for these nodes
 	int preprocessAlloc(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
 	int preprocessCopy(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
@@ -205,7 +199,7 @@ public:
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
 	bool propagateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
-
+};
 
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);
 void printReverseMap(std::map<unsigned int,std::string*> *m);
