@@ -29,7 +29,7 @@ using namespace llvm;
 typedef std::vector<SEGNode*> NodeVec;
 typedef std::list<SEGNode*> StmtList;
 struct CallerEntry {
-	std::vector<RetData*> Calls;
+	std::map<const Function*,RetData*> Calls;
 };
 typedef std::map<const Function*,CallerEntry*> CallerMap;
 typedef std::map<const Function*, std::list<SEGNode*>*> WorkList;

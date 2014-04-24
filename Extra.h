@@ -36,7 +36,8 @@ struct RetData {
 	bdd retName;            // stores bdd name for saved return value
 	RetData(std::map<const llvm::Value*,unsigned> *im, llvm::SEGNode *sn) {
 		retInst = sn;
-		const llvm::Instruction *i = sn->getInstruction();
+	 	const llvm::Instruction *i = sn->getInstruction();
+		// TODO: is this the right check to see if the return value is unused
 		if (i->getType()->isVoidTy()) {
 			retStatus = NO_RET;
 			retName   = bdd_false();
