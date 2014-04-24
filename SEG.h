@@ -19,13 +19,16 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Analysis/LoopInfo.h"
-
 #include <set>
+
 
 namespace llvm {
 
+
 class SEGNode;
 class SEG;
+
+typedef std::map<const Instruction*,SEGNode*> InstNodeMap;
 
 class SEG {
 private:
@@ -36,8 +39,6 @@ private:
 	/// List of SEGNode in function
 	typedef ilist<SEGNode> SEGNodeListType;
 	SEGNodeListType SEGNodes;
-	typedef std::map<const Instruction*,SEGNode*> InstNodeMap;
-	InstNodeMap Inst2Node;
 
 	void initialize();
 	void applyTransformation();
@@ -50,8 +51,8 @@ public:
 	const Function *getFunction() { return Fn; }
 	bool isDeclaration() { return IsDeclaration; }
 
-	/// build Inst2Node map
-	void initializeInstNodeMap();	
+	/// extend given InstNodeMap by this SEG
+	InstNodeMap *extendInstNodeMap(InstNodeMap* im);	
 
 	SEGNode *getEntryNode() { return EntryNode; }
 	/// viewSEG - this function is used for debugger.

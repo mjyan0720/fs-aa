@@ -121,6 +121,9 @@ private:
 	/// Int2Func - keeps a mapping from ints to functions, need for (pre)processCall
 	std::map<unsigned int,const Function*> Int2Func;
 
+	/// Inst2Node - keeps mapping from Instruction * to SEGNode *
+	InstNodeMap Inst2Node;
+
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
 
@@ -263,7 +266,10 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		const Function * f = &*mi;
+		// build SEG
 		SEG *seg = new SEG(f);
+		// extend our inst node map by this SEG
+		seg->extendInstNodeMap(&Inst2Node);
 		DEBUG(seg->dump());
 		Func2SEG.insert( std::pair<const Function*, SEG*>(f, seg) );
 	}

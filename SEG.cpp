@@ -252,15 +252,16 @@ SEG::~SEG() {
 }
 
 // build Inst* to SEGNode * map
-void SEG::initializeInstNodeMap() {
+InstNodeMap *SEG::extendInstNodeMap(InstNodeMap *im) {
 	std::pair<std::map<const Instruction*,SEGNode*>::iterator,bool> ret;
 	// iterate through every node
 	for(SEG::iterator sni=this->begin(), sne=this->end(); sni!=sne; ++sni) {
 		SEGNode *sn = &*sni;
 		const Instruction *i = sn->getInstruction();
-		ret = Inst2Node.insert(std::pair<const Instruction*,SEGNode*>(i,sn));
+		ret = im->insert(std::pair<const Instruction*,SEGNode*>(i,sn));
 		assert(ret.second);
 	}
+	return im;
 }
 
 /*
