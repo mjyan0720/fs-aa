@@ -71,18 +71,14 @@
  * use global variable to determine number of dimensions, etc...
  */
 
-static unsigned int POINTSTO_MAX      = 0;
-static bddPair* LPAIR                 = NULL;
-static bddPair* RPAIR                 = NULL;
+// Global to track size of POINTSTO bdd
+static unsigned int POINTSTO_MAX = 0;
+static bddPair* LPAIR            = NULL;
+static bddPair* RPAIR            = NULL;
+
 #define out2in(b)        bdd_replace(b,LPAIR)
-#define in2out(b)        bdd_replace(b,RPAIR)
-#define fdd_print(b)     do { fdd_printset(b); puts(""); } while(0)
-#define fdd_prints(s,b)  do { printf("%s: ",s); fdd_printset(b); puts(""); } while(0)
-#define bdd_print(b)     do { bdd_printset(b); puts(""); } while(0)
 #define VALIDIDX1(i)     assert(i < POINTSTO_MAX)
 #define VALIDIDX2(i,j)   assert(i < POINTSTO_MAX && j < POINTSTO_MAX)
-#define restrictIn(b,i)  bdd_restrict(b,fdd_ithvar(0,i))
-#define restrictOut(b,i) bdd_restrict(b,fdd_ithvar(1,i))
 
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
 	int domain[2];

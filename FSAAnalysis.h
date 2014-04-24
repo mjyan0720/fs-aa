@@ -22,9 +22,6 @@
 #include <list>
 #include <algorithm>
 
-#define bdd_sat(b)   ((b) != bdd_false())
-#define bdd_unsat(b) ((b) == bdd_false())
-
 using namespace llvm;
 
 typedef std::vector<SEGNode*> NodeVec;
@@ -123,7 +120,7 @@ public:
 
 	virtual bool runOnModule(Module &M);
 
-//copy from noaa
+	//copy from noaa
 
 	AliasResult aliasCheck(unsigned int v1, unsigned int v2) {
 		assert(v1 <= LocationCount && v2 <= LocationCount);
@@ -135,7 +132,7 @@ public:
 	}
 
 	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-/*	  std::map<const Value*, unsigned>::iterator ret1, ret2;
+	/*  std::map<const Value*, unsigned>::iterator ret1, ret2;
 		const Value *v1, *v2;
 		unsigned int l1, l2;
 		v1 = LocA.Ptr;
@@ -148,7 +145,7 @@ public:
 		else if (l1 != 0 && pointsTo(*TopLevelPTS,l1,0)) return MayAlias;
 		else if (l2 != 0 && pointsTo(*TopLevelPTS,l2,0)) return MayAlias;
 		else return aliasCheck(l1,l2);
-*/
+	*/
 		return MayAlias;
 	}
 
@@ -181,35 +178,36 @@ public:
 			return (AliasAnalysis*)this;
 		return this;
 	}
-//copy from noaa -- end
+	//copy from noaa -- end
 
 };
 
 } // end of namespace
 
+	// Preprocess functions perform all static variable lookups for these nodes
+	int preprocessAlloc(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessCopy(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessLoad(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessStore(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessCall(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
+	int preprocessRet(llvm::SEGNode *sn,   std::map<const llvm::Value*,unsigned int> *im);
+
+	// Main process functions propagate pointer information through the BDDs
+	int processAlloc(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
+	int processCopy(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
+	int processLoad(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
+	int processStore(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
+	int processCall(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl, std::list<const llvm::Function*> *fwkl,
+	                std::map<unsigned int,const llvm::Function*> *fm, std::map<const llvm::Function *,llvm::SEG*> *sm,
+	                bdd gvarpts);
+	int processRet(bdd *tpts,   llvm::SEGNode *sn, WorkList* swkl);
+
+	// Propagation functions automate pushing BDD changes through the SEG and worklists
+	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
+	bool propagateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
+
+
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);
 void printReverseMap(std::map<unsigned int,std::string*> *m);
-
-// Preprocess functions perform all static variable lookups for these nodes
-int preprocessAlloc(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
-int preprocessCopy(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-int preprocessLoad(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-int preprocessStore(llvm::SEGNode *sn, std::map<const llvm::Value*,unsigned int> *im);
-int preprocessCall(llvm::SEGNode *sn,  std::map<const llvm::Value*,unsigned int> *im);
-int preprocessRet(llvm::SEGNode *sn,   std::map<const llvm::Value*,unsigned int> *im);
-
-// Main process functions propagate pointer information through the BDDs
-int processAlloc(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
-int processCopy(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
-int processLoad(bdd *tpts,  llvm::SEGNode *sn, WorkList* swkl); 
-int processStore(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl); 
-int processCall(bdd *tpts, llvm::SEGNode *sn, WorkList* swkl, std::list<const llvm::Function*> *fwkl,
-                std::map<unsigned int,const llvm::Function*> *fm, std::map<const llvm::Function *,llvm::SEG*> *sm,
-                bdd gvarpts);
-int processRet(bdd *tpts,   llvm::SEGNode *sn, WorkList* swkl);
-
-// Propagation functions automate pushing BDD changes through the SEG and worklists
-bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
-bool propagateAddrTaken(llvm::SEGNode *sn, WorkList *swkl, const llvm::Function *f);
 
 #endif /* FSAANALYSIS_H */
