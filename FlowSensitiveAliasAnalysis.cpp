@@ -1,5 +1,4 @@
-//===- FlowSensitiveAliasAnalysis.cpp - Semi-Sparse Flow Sensitive Pointer Analysis-===//
-//
+//===- FlowSensitiveAliasAnalysis.cpp - Semi-Sparse Flow Sensitive Pointer Analysis-===// //
 //                     The LLVM Compiler Infrastructure
 //
 // This file is distributed under the University of Illinois Open Source
@@ -34,6 +33,13 @@
 
 
 using namespace llvm;
+
+typedef std::vector<SEGNode*> NodeVec;
+struct CallerEntry {
+	NodeVec StaticCalls;
+	NodeVec DynamicCalls;	
+};
+typedef std::map<const Function*,CallerEntry*> CallerMap;
 
 // macros to make reverseMap function more readable
 #define insertName(m,r,f,s)                                             \
@@ -90,6 +96,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 }
 
 void printReverseMap(std::map<unsigned int,std::string*> *m) {
+	dbgs() << "REVERSEVALUEMAP:\n";
 	for (std::map<unsigned int,std::string*>::iterator it = m->begin(); it != m->end(); ++it) {
 		dbgs() << it->first << " : " << *(it->second) << "\n";
 	}
@@ -124,6 +131,9 @@ private:
 	/// Inst2Node - keeps mapping from Instruction * to SEGNode *
 	InstNodeMap Inst2Node;
 
+	/// Func2Calls - keeps mapping from Function * to SEGNode * callers
+	CallerMap Func2Calls;
+
 	/// LocationCount - the total number of top variable and address-taken variable
 	unsigned LocationCount;
 
@@ -155,6 +165,9 @@ private:
 
 	/// initializeStmtWorkList - insert all SEGNode(statements) into StmtList
 	void initializeStmtWorkList(Function *F);
+
+	/// initializeCallerMap - build Function to SEGNode* map for return
+	void initializeCallerMap(CallGraph *C);
 
 	/// doAnalysis - performs actual analysis algorithm
 	void doAnalysis(Module &M);
@@ -247,9 +260,11 @@ public:
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// build SEG
 	constructSEG(M);
+	// build caller map
+	initializeCallerMap(&getAnalysis<CallGraph>());
 	// initialize value maps
 	LocationCount = initializeValueMap(M);
-	printValueMap();
+	// printValueMap();
 	Int2Str = reverseMap(&Value2Int);
 	printReverseMap(Int2Str);
 	// initialize bdd library
@@ -264,7 +279,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
-	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
+	for (Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		const Function * f = &*mi;
 		// build SEG
 		SEG *seg = new SEG(f);
@@ -272,6 +287,37 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 		seg->extendInstNodeMap(&Inst2Node);
 		DEBUG(seg->dump());
 		Func2SEG.insert( std::pair<const Function*, SEG*>(f, seg) );
+	}
+}
+
+// build caller map used in return processing
+void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
+	std::map<const Instruction*,SEGNode*>::iterator elt;
+	// for each node in the call graph
+	for (CallGraph::iterator cit = cg->begin(); cit != cg->end(); ++cit) {
+		// get a calling function
+		const Function *caller = cit->first;
+		CallGraphNode *cn = cit->second;
+		// for each callee
+		for (CallGraphNode::iterator nit = cn->begin(); nit != cn->end(); ++nit) {
+			// extract the call instruction and callee function
+			// TODO: what do NULL instructions mean; handle this later
+			Value *v = nit->first;
+			if (v == NULL) continue;
+			assert(isa<CallInst>(v) || isa<InvokeInst>(v));
+			Instruction *i = cast<Instruction>(v);
+			const Function *callee = nit->second->getFunction();
+			// add callee to map if it is not present
+			if (Func2Calls.count(callee) == 0) {
+				Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
+			}
+			// add SEGNode for this call, if it exists
+			elt = Inst2Node.find(i);
+			if (elt != Inst2Node.end()) {
+				dbgs() << "CALLERMAP: added static call from " << caller->getName() << " to " << callee->getName() << "\n";
+				Func2Calls.at(callee)->StaticCalls.push_back(elt->second);
+			}
+		}
 	}
 }
 
@@ -512,10 +558,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
   // DEBUG(std::cout<<std::endl);
 }
 
-
-
 void FlowSensitiveAliasAnalysis::printValueMap(){
-	dbgs()<<"ValueMap : \n";
+	dbgs()<<"VALUEMAP:\n";
 	for(std::map<const Value*, unsigned>::iterator mi=Value2Int.begin(), me=Value2Int.end(); mi!=me; ++mi){
 		dbgs()<<mi->first->getName()<<" --> "<<mi->second<<"\n";
 	}
