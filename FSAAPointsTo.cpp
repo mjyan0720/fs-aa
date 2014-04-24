@@ -534,19 +534,35 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 		sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));	
 	} else {
 		sn->getArgIds()->push_back(0);
-		sn->getStaticData()->push_back(fdd_ithset(0));
+		sn->getStaticData()->push_back(fdd_ithset(1));
 	}
 	return 0;
 }
 
 int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
-	// iterate through callsite list (list of segnodes)
-	// for each segnode:
-		// set the inset of callsite to include my outset
-		// propagateAddrTaken on caller
-		// if callsite stores a value (not a voidTy)
-			// update value to point to returned value in tpts
-			// propagateTopLevel on caller
+	std::map<const Function*,RetData*>::iterator cit;
+	std::map<const Function*,RetData*> *Calls;
+	bool changed = false;
+	// find out where returned value points
+	bdd retpts = sn->getStaticData()->at(0);
+	if (sn->getArgIds()->at(0)) retpts = bdd_restrict(*tpts,retpts);
+	// get call site list and iterate through it
+	Calls = &Func2Calls.at(sn->getParent()->getFunction())->Calls;
+	for (cit = Calls->begin(); cit != Calls->end(); ++cit) {
+		RetData *rd = cit->second;
+		SEGNode *callInst = rd->callInst;
+		const Function *caller = callInst->getParent()->getFunction();
+		// append my outset to caller's outset
+		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
+		// propagate addr taken and record if worklist changed	
+		changed = propagateAddrTaken(callInst) || changed;
+		// if callsite stores a value, propagate on top level
+		if (rd->callStatus != NO_SAVE) {
+			bdd newpts = rd->saveName & retpts;
+			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
+		}
 		// if caller's worklist changed, reinsert caller in worklist
+		if (changed) appendIfAbsent<const Function*>(&FuncWorkList,caller);
+	}
 	return 0;
 }

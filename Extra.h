@@ -26,27 +26,27 @@ struct CallData : public ExtraData {
 		}
 };
 
-#define NO_RET    0
-#define UNDEF_RET 1
-#define DEF_RET   2
+#define NO_SAVE    0
+#define UNDEF_SAVE 1
+#define DEF_SAVE   2
 struct RetData {
-	llvm::SEGNode *retInst; // stores SEGNode for this call
-	unsigned int retStatus; // stores NO_RET, UNDEF_RET, or DEF_RET
-	                        // NO_RET : call doesn't save ret, UNDEF_RET : call saves, but not defined, DEF_RET : call saves and defined
-	bdd retName;            // stores bdd name for saved return value
+	llvm::SEGNode *callInst; // stores SEGNode for this call
+	unsigned int callStatus; // stores NO_SAVE, UNDEF_SAVE, or DEF_SAVE
+	                         // NO_SAVE : call doesn't save ret, UNDEF_SAVE : call saves, but not defined, DEF_SAVE : call saves and defined
+	bdd saveName;             // stores bdd name for saved return value
 	RetData(std::map<const llvm::Value*,unsigned> *im, llvm::SEGNode *sn) {
-		retInst = sn;
+		callInst = sn;
 	 	const llvm::Instruction *i = sn->getInstruction();
 		// TODO: is this the right check to see if the return value is unused
 		if (i->getType()->isVoidTy()) {
-			retStatus = NO_RET;
-			retName   = bdd_false();
+			callStatus = NO_SAVE;
+			saveName   = bdd_false();
 		} else if (im->count(i)) {
-			retStatus = DEF_RET;
-			retName   = fdd_ithvar(0,im->at(i));
+			callStatus = DEF_SAVE;
+			saveName   = fdd_ithvar(0,im->at(i));
 		} else {
-			retStatus = UNDEF_RET;
-			retName   = fdd_ithset(0);
+			callStatus = UNDEF_SAVE;
+			saveName   = fdd_ithset(0);
 		}
 	}
 };
