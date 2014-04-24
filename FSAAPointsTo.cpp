@@ -455,6 +455,7 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 		// otherwise, 
 		else fpts = bdd_restrict(*tpts,fdd_ithset(0));
 		// find which functions pointer points-to and types agree, add to targets
+		// TODO: add any new targets to the calls for this function
 		for (fmit = fm->begin(); fmit != fm->end(); ++fmit) {
 			dbgs() << "TARGETTYPE: " << *(fmit->second->getFunctionType()) << "\n";
 			if (bdd_sat(fpts & fdd_ithvar(1,fmit->first))) {
@@ -505,7 +506,6 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 			// else, add p -> everything
 			else newpts = param & fdd_ithset(1);
 			// propagate top level for callee
-			// TODO: do I need to change the propagatation function?
 			propagateTopLevel(tpts,&newpts,entry);
 		}
 		// get SEG entry node's inset
@@ -524,6 +524,18 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 }
 
 int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
+	Value *ret = cast<ReturnInst>(sn->getInstruction())->getReturnValue();
+	sn->setArgIds(new std::vector<unsigned int>());
+	sn->setStaticData(new std::vector<bdd>());
+	// get my returned value name or 0 if undefined
+	// store bdd for returned value
+	if (Value2Int.count(ret)) {
+		sn->getArgIds()->push_back(Value2Int.at(ret));
+		sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));	
+	} else {
+		sn->getArgIds()->push_back(0);
+		sn->getStaticData()->push_back(fdd_ithset(0));
+	}
 	return 0;
 }
 

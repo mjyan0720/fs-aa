@@ -17,6 +17,7 @@
 #include "fdd.h"
 #include "SEG.h"
 #include "BDDMisc.h"
+#include "Extra.h"
 #include <set>
 #include <map>
 #include <list>
@@ -24,9 +25,12 @@
 
 using namespace llvm;
 
+
 typedef std::vector<SEGNode*> NodeVec;
 typedef std::list<SEGNode*> StmtList;
-struct CallerEntry { NodeVec Calls;	};
+struct CallerEntry {
+	std::vector<RetData*> Calls;
+};
 typedef std::map<const Function*,CallerEntry*> CallerMap;
 typedef std::map<const Function*, std::list<SEGNode*>*> WorkList;
 

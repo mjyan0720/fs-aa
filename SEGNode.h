@@ -20,11 +20,12 @@
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "bdd.h"
-#include "Extra.h"
 #include <set>
 #include <vector>
 
 #define ENABLE_OPT_1
+
+struct ExtraData;
 
 namespace llvm {
 

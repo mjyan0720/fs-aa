@@ -72,7 +72,9 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			elt = Inst2Node.find(i);
 			if (elt != Inst2Node.end()) {
 				dbgs() << "CALLERMAP: added static call from " << caller->getName() << " to " << callee->getName() << "\n";
-				Func2Calls.at(callee)->Calls.push_back(elt->second);
+				// insert RetData for this call
+				// TODO: is this the right check to see if the return value is unused
+				Func2Calls.at(callee)->Calls.push_back(new RetData(&Value2Int,elt->second));
 			}
 		}
 	}
