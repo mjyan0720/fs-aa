@@ -36,8 +36,7 @@ using namespace llvm;
 
 typedef std::vector<SEGNode*> NodeVec;
 struct CallerEntry {
-	NodeVec StaticCalls;
-	NodeVec DynamicCalls;	
+	NodeVec Calls;	
 };
 typedef std::map<const Function*,CallerEntry*> CallerMap;
 
@@ -315,7 +314,7 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			elt = Inst2Node.find(i);
 			if (elt != Inst2Node.end()) {
 				dbgs() << "CALLERMAP: added static call from " << caller->getName() << " to " << callee->getName() << "\n";
-				Func2Calls.at(callee)->StaticCalls.push_back(elt->second);
+				Func2Calls.at(callee)->Calls.push_back(elt->second);
 			}
 		}
 	}
