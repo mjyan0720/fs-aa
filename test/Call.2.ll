@@ -6,7 +6,7 @@
 define i32 @main() {
 	%X = alloca i32*
 	store i32* @A, i32** %X
-	%Y = call i32  @call_1(i32** %X)
+	call i32  @call_1(i32** %X)
 	%Z = load i32** %X 
 	ret i32 0
 }

@@ -17,15 +17,15 @@ using namespace llvm;
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// build SEG
 	constructSEG(M);
-	// build caller map
-	initializeCallerMap(&getAnalysis<CallGraph>());
 	// initialize value maps
 	LocationCount = initializeValueMap(M);
+	// initialize bdd library
+	pointsToInit(1000,10000,LocationCount);
+	// build caller map
+	initializeCallerMap(&getAnalysis<CallGraph>());
 	// printValueMap();
 	Int2Str = reverseMap(&Value2Int);
 	printReverseMap(Int2Str);
-	// initialize bdd library
-	pointsToInit(1000,10000,LocationCount);
 	// initialize worklists
 	initializeFuncWorkList(M);
 	// do algorithm	
@@ -125,11 +125,8 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			// variable, which is untractable, then treat it points everywhere.
 			if(isa<StoreInst>(inst) | isa<ReturnInst>(inst))
 				continue;
-			// If the call instruction deosn't define new variable
-			// don't assign id for it.
-			if(isa<CallInst>(inst)){
-				Value *v = inst->getOperand(0);
-				if(isa<Function>(v))
+			// if return value is void, I don't care about it
+			if(isa<CallInst>(inst) && inst->getType()->isVoidTy()){
 					continue;	
 			}
 #ifdef ENABLE_OPT_1

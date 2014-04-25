@@ -33,18 +33,24 @@ struct RetData {
 	llvm::SEGNode *callInst; // stores SEGNode for this call
 	unsigned int callStatus; // stores NO_SAVE, UNDEF_SAVE, or DEF_SAVE
 	                         // NO_SAVE : call doesn't save ret, UNDEF_SAVE : call saves, but not defined, DEF_SAVE : call saves and defined
-	bdd saveName;             // stores bdd name for saved return value
+	bdd saveName;            // stores bdd name for saved return value
 	RetData(std::map<const llvm::Value*,unsigned> *im, llvm::SEGNode *sn) {
 		callInst = sn;
 	 	const llvm::Instruction *i = sn->getInstruction();
-		// TODO: is this the right check to see if the return value is unused
+		// if return value is not used, I don't care about it
 		if (i->getType()->isVoidTy()) {
+			llvm::dbgs() << "RETDATA: NO SAVE\n";
 			callStatus = NO_SAVE;
 			saveName   = bdd_false();
+		// otherwise, check if it is defined
 		} else if (im->count(i)) {
+			llvm::dbgs() << "RETDATA: DEF SAVE " << i->getName() << " WITH " << im->at(i) << "\n";
 			callStatus = DEF_SAVE;
 			saveName   = fdd_ithvar(0,im->at(i));
+			assert(saveName != bdd_false());
+		// otherwise, it is undefined
 		} else {
+			llvm::dbgs() << "RETDATA: UNDEF SAVE " << i->getName() << "\n";
 			callStatus = UNDEF_SAVE;
 			saveName   = fdd_ithset(0);
 		}
