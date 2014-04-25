@@ -372,8 +372,15 @@ bdd genFilterSet(bdd inset, bdd gvarpts, bdd argset) {
 	else return filter;
 }
 
-bdd matchingFunctions(const Value *funCall) {
-	return bdd_false();
+// get set of functions whose type matches this calls type
+bdd FlowSensitiveAliasAnalysis::matchingFunctions(const Value *funCall) {
+	std::map<unsigned int,const Function *>::iterator fp;
+	const Type *callType = funCall->getType()->getPointerElementType();
+	bdd funs = bdd_false();
+	for (fp = Int2Func.begin(); fp != Int2Func.end(); ++fp)
+		if (fp->second->getType() == callType)
+			funs |= fdd_ithvar(0,fp->first);
+	return funs;
 }
 
 int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
@@ -428,6 +435,7 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	return 0;
 }
 
+// return a vector of Function* representing where a function points
 std::vector<const Function*> *
 FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funId, bdd funName, Type *funType)
 {
@@ -463,15 +471,15 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 	return targets;
 }
 
-void
-FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target) {
+// propagate points-to information from caller to callee
+void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd filter, const Function *target) {
 	std::vector<bdd> *params, *call_args;
 	unsigned int paramId, argId;
 	bdd paramName, argName, kill, newpts;
 	// get necessary data
 	SEGNode *entry = Func2SEG.at(target)->getEntryNode();
 	params = entry->getStaticData();
-	call_args = funNode->getStaticData();
+	call_args = callNode->getStaticData();
 	// debugging calls
 	dbgs() << "TARGET: " << *(target) << "\n";
 	assert(params != NULL && call_args != NULL);
@@ -481,12 +489,12 @@ FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *funNode, bdd filte
 		// get necessary data
 		paramName = params->at(i);
 		argName = call_args->at(i);
-		argId = funNode->getArgIds()->at(i);
+		argId = callNode->getArgIds()->at(i);
 		paramId = entry->getArgIds()->at(i);
 		// if argument is defined, add p -> Top(a)
 		// and stong update to delete p -> p__argument
 		if (argId != 0) {
-			dbgs() << "TO REMOVE: " << paramId+1 << "\n";
+			dbgs() << "KILL: " << paramId+1 << "\n";
 			newpts = paramName & bdd_restrict(*tpts,argName);
 			kill = bdd_not(paramName & fdd_ithvar(1,paramId));
 		}
@@ -512,9 +520,10 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	std::vector<const Function*> *targets;
 	CallData *cd;	
 	bdd filter;
-	// compute filter set for this function
+	// setup some data we need
 	// filter = genFilterSet(sn->getInSet(),globalValueNames,cd->argset);
 	filter = sn->getInSet();
+	cd = static_cast<CallData*>(sn->getExtraData());
 	// debugging calls
 	dbgs() << "BDD FILTER:\n";
 	printBDD(POINTSTO_MAX,filter);

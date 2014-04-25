@@ -205,6 +205,8 @@ public:
 	// helper functions for process copy
   std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
   void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
+  bdd matchingFunctions(const Value *funCall);
+
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn);
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd *update, llvm::SEGNode *sn);
