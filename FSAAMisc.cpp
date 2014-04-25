@@ -1,4 +1,5 @@
 #include "FSAAnalysis.h"
+#include <string>
 
 // macros to make reverseMap function more readable
 #define insertName(m,r,f,s)                                             \
@@ -13,17 +14,25 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 	std::pair<std::map<unsigned int,std::string*>::iterator,bool> ret;
 	std::map<unsigned int,std::string *> *inv = new std::map<unsigned int,std::string*>();
 	std::string *name;
+	std::string prename;
+	char buf[100];
+	unsigned int anon = 1;
 	// build inverse map (also check map is 1-to-1)
 	for (std::map<const Value*,unsigned int>::iterator it = m->begin(); it != m->end(); ++it) {
 		const Value *v = it->first;
 		unsigned int id = it->second;
+		// if value is anonymous, give it a numeric name
+		if (v->getName().size() == 0) {
+			assert(snprintf(buf,100,"%d",anon++) < 100);
+			prename = ss(buf);
+		} else prename = v->getName();
 		// if value is an instruction or argument, add it's function's parent name
 		if (isa<Instruction>(v))
-			name = new ss(ss(cast<Instruction>(v)->getParent()->getParent()->getName())+"_"+ss(v->getName()));
+			name = new ss(ss(cast<Instruction>(v)->getParent()->getParent()->getName())+"_"+ss(prename));
 		else if (isa<Argument>(v))	
-			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(v->getName()));
+			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(prename));
 		else 
-			name = new ss(v->getName());
+			name = new ss(prename);
 #ifdef ENABLE_OPT_1
 		// in the opt1 version, they are not assigned an id, they share the id with
 		// source value used at right hand side

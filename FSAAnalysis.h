@@ -201,6 +201,7 @@ public:
 
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn);
+	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd *update, llvm::SEGNode *sn);
 	bool propagateAddrTaken(llvm::SEGNode *sn);
 };
 

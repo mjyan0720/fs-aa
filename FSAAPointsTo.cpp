@@ -138,11 +138,16 @@ bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
 }
 
 bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn) {
+	bdd tmp = bdd_true();
+	return propagateTopLevel(oldtpts,newpart,&tmp,sn);
+}
+
+bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd* update, SEGNode *sn) {
 	const Function *f = sn->getParent()->getFunction();
 	std::list<SEGNode*> *wkl = StmtWorkList.at(f);
 	bool changed = false;
 	// if old and new are different, add all users to worklist
-	if (*oldtpts != (*oldtpts | *newpart)){
+	if (*oldtpts != ((*oldtpts | *newpart) & *update)) {
 		dbgs() << "PROPAGATE TOPLEVEL FOR:\t"<<*sn<<"\n";
 		// only append to worklist if absent
 		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
@@ -152,7 +157,8 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, S
 			}
 	}
 	// update old
-	*oldtpts = *oldtpts | *newpart;
+	*oldtpts = (*oldtpts | *newpart) & *update;
+	if (*update != bdd_true()) dbgs() << "STRONG UPDATE:\n";
 	// return true if the worklist was changed
 	return changed;
 }
@@ -432,7 +438,7 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 	std::vector<const Function*>::iterator fit;
 	std::vector<const Function*> *targets;
 	std::vector<bdd> *sd, *params;
-	bdd fpts, fn, filter;
+	bdd fpts, fn, filter, toremove;
 	unsigned int fv;
 	CallData *cd;	
 	Type *ft;
@@ -501,12 +507,19 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
 			bdd arg = sd->at(i);
 			bdd newpts;
 			// if argument is defined, add p -> Top(a)
-			if (sn->getArgIds()->at(i))
+			// on first call, stong update to delete p -> p__argument
+			if (sn->getArgIds()->at(i)) {
 				newpts = param & bdd_restrict(*tpts,arg);
+				dbgs() << "TO REMOVE: " << entry->getArgIds()->at(i)+1 << "\n";
+				toremove = bdd_not(param & fdd_ithvar(1,entry->getArgIds()->at(i)+1));
+			}
 			// else, add p -> everything
-			else newpts = param & fdd_ithset(1);
+			else {
+				newpts = param & fdd_ithset(1);
+				toremove = bdd_true();
+			}
 			// propagate top level for callee
-			propagateTopLevel(tpts,&newpts,entry);
+			propagateTopLevel(tpts,&newpts,&toremove,entry);
 		}
 		// get SEG entry node's inset
 		entry->setInSet(entry->getInSet() | filter);
@@ -542,9 +555,13 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	std::map<const Function*,RetData*>::iterator cit;
 	std::map<const Function*,RetData*> *Calls;
+	// move in to out
+	sn->setOutSet(sn->getInSet());
 	// find out where returned value points
 	bdd retpts = sn->getStaticData()->at(0);
 	if (sn->getArgIds()->at(0)) retpts = bdd_restrict(*tpts,retpts);
+	// return if we have no calls
+	if (!Func2Calls.count(sn->getParent()->getFunction())) return 0;
 	// get call site list and iterate through it
 	Calls = &Func2Calls.at(sn->getParent()->getFunction())->Calls;
 	for (cit = Calls->begin(); cit != Calls->end(); ++cit) {
@@ -554,13 +571,13 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		const Function *caller = callInst->getParent()->getFunction();
 		dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n";
 		// append my outset to caller's outset
+		printBDD(LocationCount,Int2Str,sn->getOutSet());
 		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
 		// propagate addr taken and record if worklist changed	
 		changed = propagateAddrTaken(callInst) || changed;
 		// if callsite stores a value, propagate on top level
 		if (rd->callStatus != NO_SAVE) {
 			dbgs() << "RET: Caller saves\n";
-			printBDD(LocationCount,Int2Str,rd->saveName);
 			bdd newpts = rd->saveName & retpts;
 			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
 		} else dbgs() << "RET: Caller doesn't save\n";

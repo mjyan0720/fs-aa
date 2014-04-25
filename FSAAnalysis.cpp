@@ -198,18 +198,22 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 		return;
 	SEGNode *entry = seg->getEntryNode();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
+	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	// add to Int2Func mapping
 	Int2Func.insert(std::pair<unsigned int,const Function *>(Value2Int.at(f),f));
 	// for each parameter, add it's hidden pair to the points-to set
 	for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
 		unsigned int argid = Value2Int.at(&*ai);
 		bdd arg = fdd_ithvar(0,argid);
+		// add argument id to argids
+		ArgIds->push_back(argid);
 		// add points-to pair to Top points-to set
 		TopLevelPTS = TopLevelPTS | (arg & fdd_ithvar(1,argid+1));
 		// add argument to static data
 		StaticData->push_back(arg);	
 	}	
-	// set static data for node
+	// set argids and static data for node
+	entry->setArgIds(ArgIds);
 	entry->setStaticData(StaticData);
 }
 
