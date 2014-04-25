@@ -231,25 +231,18 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		// add them to global variable pointer set
 		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
-	// iterate through each function and each worklist
-	// FIXME: shouldn't setup analysis by traversing stmtlist
-	// some instruction hasn't been added to stmtlist
-	// such as singleCopy, return
-	std::map<const Function*, StmtList*>::iterator list_iter;
-	std::list<SEGNode*>::iterator stmt_iter;
-	for (list_iter = StmtWorkList.begin(); list_iter != StmtWorkList.end(); ++list_iter) {
-		// preprocess this function header
-		preprocessFunction(list_iter->first);
-		StmtList* stmtList = list_iter->second;
-		// preprocess each instruction in the function
-		for (stmt_iter = stmtList->begin(); stmt_iter != stmtList->end(); ++stmt_iter) {
-			SEGNode *sn = *stmt_iter;
+	// TODO: does single copy need preprocessing???
+	// iterate through each function and each node
+	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+		preprocessFunction(mi->first);
+		SEG *seg = mi->second;
+		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
+			SEGNode *sn = &*sni;
 			const Instruction *i = sn->getInstruction();
 			// set SEGNode id if exists in Value Map
 			if (Value2Int.find(sn->getInstruction())!=Value2Int.end())
 				sn->setId(Value2Int[sn->getInstruction()]);
-			// set SEGNode type and perform preprocessing
-			// FIXME: type is not needed in SEGNode 
+			// perform preprocessing on SEGNode
 			if (isa<AllocaInst>(i)) {
 				preprocessAlloc(sn);
 			} else if (isa<PHINode>(i)) {
@@ -261,9 +254,9 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<CallInst>(i)) {
 				preprocessCall(sn);
 			} else if (isa<ReturnInst>(i)) {
-				// preprocessRet(sn,&Value2Int);
-			}  else if (isa<GetElementPtrInst>(i)) {
-				// preprocessGEP(sn,Value2Int);
+				preprocessRet(sn);
+			} else {
+				assert(false && "Unknown instruction");
 			}
 		}
 	}
@@ -296,7 +289,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::Load:		processLoad(&TopLevelPTS,sn);  break;
 				case Instruction::Store:	processStore(&TopLevelPTS,sn); break;
 				case Instruction::Call:   processCall(&TopLevelPTS,sn,&Int2Func,&Func2SEG,globalValueNames); break;
-				case Instruction::Ret:
+				case Instruction::Ret:    processRet(&TopLevelPTS,sn); break;
 				//if it's self-copy instruction, don't need process instruction itself;
 				//propagateAddrTaken if has successors
 				//only has one definition, so it won't be merge point for top, don't need

@@ -552,15 +552,18 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		RetData *rd = cit->second;
 		SEGNode *callInst = rd->callInst;
 		const Function *caller = callInst->getParent()->getFunction();
+		dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n";
 		// append my outset to caller's outset
 		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
 		// propagate addr taken and record if worklist changed	
 		changed = propagateAddrTaken(callInst) || changed;
 		// if callsite stores a value, propagate on top level
 		if (rd->callStatus != NO_SAVE) {
+			dbgs() << "RET: Caller saves\n";
 			bdd newpts = rd->saveName & retpts;
+			printBDD(LocationCount,Int2Str,rd->saveName);
 			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
-		}
+		} else dbgs() << "RET: Caller doesn't save\n";
 		// if caller's worklist changed, reinsert caller in worklist
 		if (changed) appendIfAbsent<const Function*>(&FuncWorkList,caller);
 	}
