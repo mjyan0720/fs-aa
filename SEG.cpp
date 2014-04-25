@@ -143,7 +143,7 @@ void SEG::initialize() {
 		}
 #endif
 	}
-	dump();
+	DEBUG(this->dump());
 }
 
 

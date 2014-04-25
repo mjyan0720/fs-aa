@@ -192,7 +192,7 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 		// don't initialize worklist with it.
 		// assign singleCopy same id as its source, already processed
 #ifdef ENABLE_OPT_1
-		if(isa<ReturnInst>(inst) | sn->singleCopy())
+		if(isa<ReturnInst>(inst) | isa<CastInst>(inst))
 #else
 		if(isa<ReturnInst>(inst))
 #endif
@@ -255,9 +255,12 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			SEGNode *sn = &*sni;
 			const Instruction *i = sn->getInstruction();
 			// set SEGNode id if exists in Value Map
+			DEBUG(dbgs()<<sn->singleCopy()<<"\t"<<isa<CastInst>(i)<<"\t"<<*sn<<"\n");
 			if (Value2Int.find(sn->getInstruction())!=Value2Int.end())
 				sn->setId(Value2Int[sn->getInstruction()]);
 			// perform preprocessing on SEGNode
+			if(isa<CastInst>(i) | isa<GetElementPtrInst>(i))
+				continue;
 			if (isa<AllocaInst>(i)) {
 				preprocessAlloc(sn);
 			} else if (isa<PHINode>(i)) {
@@ -297,6 +300,9 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
 			// DEBUG(fdd_printset(TopLevelPTS));
+
+			if(sn->singleCopy())
+				continue;
 
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn); break;
