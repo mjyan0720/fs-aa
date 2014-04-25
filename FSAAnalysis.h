@@ -98,10 +98,14 @@ private:
 	/// initializeCallerMap - build Function to SEGNode* map for return
 	void initializeCallerMap(CallGraph *C);
 
+	/// addCaller - invoked to add callers to caller map
+	void addCaller(const Instruction *i, const Function *f);
+	void addCaller(SEGNode *c, const Function *f);	
+
 	/// doAnalysis - performs actual analysis algorithm
 	void doAnalysis(Module &M);
 
-	/// setupAnalysis - initializes analysis datastructures
+	/// setupAnalysis - initializes analysis datastructures void setupAnalysis(Module &M);
 	void setupAnalysis(Module &M);
 
 	/// printValueMap - print out debug information of value mapping.
@@ -195,10 +199,12 @@ public:
 	int processCopy(bdd *tpts,  llvm::SEGNode *sn); 
 	int processLoad(bdd *tpts,  llvm::SEGNode *sn); 
 	int processStore(bdd *tpts, llvm::SEGNode *sn); 
-	int processCall(bdd *tpts, llvm::SEGNode *sn, std::map<unsigned int,const llvm::Function*> *fm,
-                  std::map<const llvm::Function *,llvm::SEG*> *sm, bdd gvarpts);
+	int processCall(bdd *tpts,  llvm::SEGNode *sn);
 	int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
+	// helper functions for process copy
+  std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
+  void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn);
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd *update, llvm::SEGNode *sn);

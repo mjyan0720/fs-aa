@@ -428,110 +428,115 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	return 0;
 }
 
-int FlowSensitiveAliasAnalysis::processCall(bdd *tpts,
-                SEGNode *sn,
-                std::map<unsigned int,const Function*> *fm,
-                std::map<const Function *,SEG*> *sm,
-                bdd gvarpts) {
-	// declare some variables we need
+std::vector<const Function*> *
+FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funId, bdd funName, Type *funType)
+{
+	std::vector<const Function*> *targets = new std::vector<const Function*>();
 	std::map<unsigned int,const Function *>::iterator fmit;
-	std::vector<const Function*>::iterator fit;
-	std::vector<const Function*> *targets;
-	std::vector<bdd> *sd, *params;
-	bdd fpts, fn, filter, toremove;
-	unsigned int fv;
-	CallData *cd;	
-	Type *ft;
-
-	//cd = dynamic_cast<CallData*>(sn->getExtraData());
-	cd = static_cast<CallData*>(sn->getExtraData());
-	fv = cd->funcId;
-	sd = sn->getStaticData();
-	ft = cd->funcType;
-	fn = cd->funcName;
-	//filter = genFilterSet(sn->getInSet(),gvarpts,cd->argset);
-	filter = sn->getInSet();
-
-	dbgs() << "FUNTYPE: " << (*ft) << "\n";
-	// if func is pointer, dynamically compute its targets
-	if (cd->isPtr) {
-		targets = new std::vector<const Function*>();
-		// if function is defined and doesn't point everywhere, compute it's points-to set
-		if (fv && !pointsTo(*tpts,fv,0)) fpts = bdd_restrict(*tpts,fn);
-		// otherwise, 
-		else fpts = bdd_restrict(*tpts,fdd_ithset(0));
-		// find which functions pointer points-to and types agree, add to targets
-		// TODO: add any new targets to the calls for this function
-		for (fmit = fm->begin(); fmit != fm->end(); ++fmit) {
-			dbgs() << "TARGETTYPE: " << *(fmit->second->getFunctionType()) << "\n";
-			if (bdd_sat(fpts & fdd_ithvar(1,fmit->first))) {
-				if (fmit->second->getFunctionType() == ft) {
-					dbgs() << "Func added\n";
-					targets->push_back(fmit->second);
-				} else {
-					dbgs() << "Types: " << ft << " and " << fmit->second->getFunctionType() << " do not agree";
-				}	
-			} else dbgs() << "Does not point to function\n";
-		}
-	// else get its targets statically
-	} else {
-		dbgs() << "NOT PTR\n";
-		// if this is only a declaration, fail
-		// TODO: change this policy to something more robust
-		//assert(!cd->targets->at(0)->isDeclaration());
-		// TODO: if it's declaration, set return value points to everywhere
-		// propagate top/addr, may change arguments
-		// can use function to get more information like whether pass by reference
-		// or return by reference. check llvm doc for more detail.
-		if(cd->targets->at(0)->isDeclaration())
-			return 0;
-		targets = cd->targets;
+	bdd fpts;
+	// if function is defined and doesn't point everywhere, compute it's points-to set
+	if (funId && !pointsTo(*tpts,funId,0)) fpts = bdd_restrict(*tpts,funName);
+	// otherwise, it can point everywhere
+	else fpts = bdd_restrict(*tpts,fdd_ithset(0));
+	// find which functions pointer points-to and types agree, add to targets
+	for (fmit = Int2Func.begin(); fmit != Int2Func.end(); ++fmit) {
+		// get potential target information
+		int targetId = fmit->first;
+		bdd targetName = fdd_ithvar(1,targetId);
+		const Function* target = fmit->second;
+		const Type *targetType = target->getFunctionType();
+		dbgs() << "TARGET: " << *(Int2Str->at(targetId)) << " " << targetType << "\n";
+		// check if function pointer points to target
+		if (bdd_sat(fpts & targetName)) {
+			// if so, check if their types match
+			if (targetType == funType) {
+				dbgs() << "TARGET ADDED\n";
+				// add target function to targest list
+				targets->push_back(target);
+				// add target function to caller map with this node as it's caller
+				addCaller(funNode,target);
+			// otherwise, fail (may change this later)
+			} else assert(false && "Types should agree");
+		// pointer does NOT point to target
+		} else dbgs() << "NOT IN POINTS-TO SET\n";
 	}
+	return targets;
+}
 
+void
+FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target) {
+	std::vector<bdd> *params, *call_args;
+	unsigned int paramId, argId;
+	bdd paramName, argName, kill, newpts;
+	// get necessary data
+	SEGNode *entry = Func2SEG.at(target)->getEntryNode();
+	params = entry->getStaticData();
+	call_args = funNode->getStaticData();
+	// debugging calls
+	dbgs() << "TARGET: " << *(target) << "\n";
+	assert(params != NULL && call_args != NULL);
+	assert(params->size() == call_args->size());
+	// for each argument
+	for (unsigned int i = 0; i < call_args->size(); i++) {
+		// get necessary data
+		paramName = params->at(i);
+		argName = call_args->at(i);
+		argId = funNode->getArgIds()->at(i);
+		paramId = entry->getArgIds()->at(i);
+		// if argument is defined, add p -> Top(a)
+		// and stong update to delete p -> p__argument
+		if (argId != 0) {
+			dbgs() << "TO REMOVE: " << paramId+1 << "\n";
+			newpts = paramName & bdd_restrict(*tpts,argName);
+			kill = bdd_not(paramName & fdd_ithvar(1,paramId));
+		}
+		// else, add p -> everything
+		else {
+			newpts = paramName & fdd_ithset(1);
+			kill = bdd_true();
+		}
+		// propagate top level for callee
+		propagateTopLevel(tpts,&newpts,&kill,entry);
+	}
+	// get SEG entry node's inset
+	entry->setInSet(entry->getInSet() | filter);
+	entry->setOutSet(entry->getInSet());
+	// propagate using address taken on entry node
+	if (propagateAddrTaken(entry))
+			appendIfAbsent<const Function*>(&FuncWorkList,target);
+}
+
+int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
+	// declare some variables we need
+	std::vector<const Function*>::iterator target;
+	std::vector<const Function*> *targets;
+	CallData *cd;	
+	bdd filter;
+	// compute filter set for this function
+	// filter = genFilterSet(sn->getInSet(),globalValueNames,cd->argset);
+	filter = sn->getInSet();
+	// debugging calls
 	dbgs() << "BDD FILTER:\n";
 	printBDD(POINTSTO_MAX,filter);
-
+	dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n";
+	// if func is pointer, dynamically compute its targets
+	if (cd->isPtr)
+		targets = computeTargets(tpts,sn,cd->funcId,cd->funcName,cd->funcType);
+	// else get its targets statically
+	else {
+		dbgs() << "NOT PTR\n";
+		// TODO: if it's declaration, return value points everywhere, propagate both
+		// can use function to get more information like whether pass by reference
+		// or return by reference. check llvm doc for more detail.
+		if (cd->targets->at(0)->isDeclaration()) return 0;
+		targets = cd->targets;
+	}
 	dbgs() << "ENUMERATE TARGETS\n";
-	// foreach target
-	for (fit = targets->begin(); fit != targets->end(); ++fit) {
-		// get entry node and params, perform sanity checks
-		dbgs() << "TARGET: " << *(*fit) << "\n";
-		SEGNode *entry = sm->at(*fit)->getEntryNode();
-		params = entry->getStaticData();
-		assert(entry->getParent()->getFunction() == *fit && "Unequal functions!");
-		assert(params != NULL && sd != NULL);
-		assert(params->size() == sd->size());
-		// for each argument, add parameter argument pair
-		for (unsigned int i = 0; i < sd->size(); i++) {
-			bdd param = params->at(i);
-			bdd arg = sd->at(i);
-			bdd newpts;
-			// if argument is defined, add p -> Top(a)
-			// on first call, stong update to delete p -> p__argument
-			if (sn->getArgIds()->at(i)) {
-				newpts = param & bdd_restrict(*tpts,arg);
-				dbgs() << "TO REMOVE: " << entry->getArgIds()->at(i)+1 << "\n";
-				toremove = bdd_not(param & fdd_ithvar(1,entry->getArgIds()->at(i)+1));
-			}
-			// else, add p -> everything
-			else {
-				newpts = param & fdd_ithset(1);
-				toremove = bdd_true();
-			}
-			// propagate top level for callee
-			propagateTopLevel(tpts,&newpts,&toremove,entry);
-		}
-		// get SEG entry node's inset
-		entry->setInSet(entry->getInSet() | filter);
-		entry->setOutSet(entry->getInSet());
-		// propagate using address taken on entry node
-		if (propagateAddrTaken(entry))
-				appendIfAbsent<const Function*>(&FuncWorkList,*fit);
-	}	
-
-	// set outset to inset - filter
+	// process all computed targets
+	for (target = targets->begin(); target != targets->end(); ++target)
+		processTarget(tpts,sn,filter,*target);
+	// set outset to inset - filter, then propagate
 	sn->setOutSet(sn->getInSet() - filter);
-	// propagate address taken
 	propagateAddrTaken(sn);
 	return 0;
 }

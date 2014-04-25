@@ -47,13 +47,33 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	}
 }
 
+void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Function *callee) {
+ 	// add SEGNode for this call, if it exists
+	std::map<const Instruction*,SEGNode*>::iterator elt;
+ 	elt = Inst2Node.find(callInst);
+ 	if (elt != Inst2Node.end()) return;
+	addCaller(elt->second,callee);
+}
+
+void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *callee) {
+	const Function *caller = callInst->getParent()->getFunction();
+	// if callee is NULL, this is an indirect call; we will add it later
+	if (callee == NULL) return;
+	// add callee to map if it is not present
+	if (Func2Calls.count(callee) == 0) {
+		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
+	}
+	// add callInst to callee's internal map, insert RetData for this call
+	dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n";
+	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
+}
+
 // build caller map used in return processing
 void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 	std::map<const Instruction*,SEGNode*>::iterator elt;
 	// for each node in the call graph
 	for (CallGraph::iterator cit = cg->begin(); cit != cg->end(); ++cit) {
 		// get a calling function
-		const Function *caller = cit->first;
 		CallGraphNode *cn = cit->second;
 		// for each callee
 		for (CallGraphNode::iterator nit = cn->begin(); nit != cn->end(); ++nit) {
@@ -64,17 +84,8 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			assert(isa<CallInst>(v) || isa<InvokeInst>(v));
 			Instruction *i = cast<Instruction>(v);
 			const Function *callee = nit->second->getFunction();
-			// add callee to map if it is not present
-			if (Func2Calls.count(callee) == 0) {
-				Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
-			}
-			// add SEGNode for this call, if it exists
-			elt = Inst2Node.find(i);
-			if (elt != Inst2Node.end()) {
-				dbgs() << "CALLERMAP: added static call from " << caller->getName() << " to " << callee->getName() << "\n";
-				// insert RetData for this call
-				Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,elt->second)));
-			}
+			// add the caller
+			addCaller(i,callee);
 		}
 	}
 }
@@ -199,8 +210,11 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	SEGNode *entry = seg->getEntryNode();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
+	unsigned int fid = Value2Int.at(f);
 	// add to Int2Func mapping
-	Int2Func.insert(std::pair<unsigned int,const Function *>(Value2Int.at(f),f));
+	Int2Func.insert(std::pair<unsigned int,const Function *>(fid+1,f));
+	// function's hidden pair to points-to set
+	TopLevelPTS = TopLevelPTS | (fdd_ithvar(0,fid) & fdd_ithvar(1,fid+1));
 	// for each parameter, add it's hidden pair to the points-to set
 	for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
 		unsigned int argid = Value2Int.at(&*ai);
@@ -289,8 +303,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn);  break;
 				case Instruction::Load:		processLoad(&TopLevelPTS,sn);  break;
 				case Instruction::Store:	processStore(&TopLevelPTS,sn); break;
-				case Instruction::Call:   processCall(&TopLevelPTS,sn,&Int2Func,&Func2SEG,globalValueNames); break;
-				case Instruction::Ret:    processRet(&TopLevelPTS,sn); break;
+				case Instruction::Call:   processCall(&TopLevelPTS,sn);  break;
+				case Instruction::Ret:    processRet(&TopLevelPTS,sn);   break;
 				//if it's self-copy instruction, don't need process instruction itself;
 				//propagateAddrTaken if has successors
 				//only has one definition, so it won't be merge point for top, don't need
