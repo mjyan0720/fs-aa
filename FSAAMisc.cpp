@@ -37,7 +37,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		// in the opt1 version, they are not assigned an id, they share the id with
 		// source value used at right hand side
 		// insert will fail.
-		if (isa<GetElementPtrInst>(v) | isa<BitCastInst>(v))
+		if (isa<GetElementPtrInst>(v) | isa<CastInst>(v))
 			continue;
 #endif	
 		// add hidden names for each value type that has hidden values
