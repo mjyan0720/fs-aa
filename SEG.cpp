@@ -117,7 +117,7 @@ void SEG::initialize() {
 			from = NULL;
 			if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
 				from = inst->getPointerOperand();
-			} else if(const BitCastInst *inst = dyn_cast<BitCastInst>(I)){
+			} else if(const CastInst *inst = dyn_cast<CastInst>(I)){
 				from = inst->getOperand(0);
 			}
 			assert(from!=NULL && "not support for all singleCopy instruction type");
