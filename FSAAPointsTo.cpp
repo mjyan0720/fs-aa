@@ -148,7 +148,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	bool changed = false;
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != ((*oldtpts | *newpart) & *update)) {
-		dbgs() << "PROPAGATE TOPLEVEL FOR:\t"<<*sn<<"\n";
+		dbgs() << "PROPAGATE TOPLEVEL FOR: "<<*sn<<"\n";
 		// only append to worklist if absent
 		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
 			if (appendIfAbsent<SEGNode*>(wkl,*i)) {
@@ -158,7 +158,10 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	}
 	// update old
 	*oldtpts = (*oldtpts | *newpart) & *update;
-	if (*update != bdd_true()) dbgs() << "STRONG UPDATE:\n";
+	if (*update != bdd_true()) {
+		dbgs() << "STRONG UPDATE:\n";
+		printBDD(LocationCount,Int2Str,*oldtpts);
+	}	
 	// return true if the worklist was changed
 	return changed;
 }
@@ -176,7 +179,7 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 		newink = oldink | sn->getOutSet();
 		// append to worklist if inset changed and not already in worklist
 		if (oldink != newink){
-			dbgs()<<"PROPAGATE ADDRTAKEN FOR:\t"<<*sn<<"\n";
+			dbgs()<<"PROPAGATE ADDRTAKEN FOR: "<<*sn<<"\n";
 			if (appendIfAbsent<SEGNode*>(wkl,succ)) {
 				changed = true;
 				dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
@@ -496,7 +499,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 		if (argId != 0) {
 			dbgs() << "KILL: " << paramId+1 << "\n";
 			newpts = paramName & bdd_restrict(*tpts,argName);
-			kill = bdd_not(paramName & fdd_ithvar(1,paramId));
+			kill = bdd_not(paramName & fdd_ithvar(1,paramId+1));
 		}
 		// else, add p -> everything
 		else {
@@ -569,11 +572,18 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	std::map<const Function*,RetData*>::iterator cit;
 	std::map<const Function*,RetData*> *Calls;
+	bdd retpts;
 	// move in to out
 	sn->setOutSet(sn->getInSet());
 	// find out where returned value points
-	bdd retpts = sn->getStaticData()->at(0);
-	if (sn->getArgIds()->at(0)) retpts = bdd_restrict(*tpts,retpts);
+	if (sn->getArgIds()->at(0)) {
+		dbgs() << "RET VALUE: DEFINED\n";
+		retpts = bdd_restrict(*tpts,sn->getStaticData()->at(0));
+	} else {
+		dbgs() << "RET VALUE: UNDEFINED\n";
+		retpts = sn->getStaticData()->at(0);
+		printBDD(LocationCount,Int2Str,retpts);
+	}
 	// return if we have no calls
 	if (!Func2Calls.count(sn->getParent()->getFunction())) return 0;
 	// get call site list and iterate through it
@@ -593,6 +603,7 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		if (rd->callStatus != NO_SAVE) {
 			dbgs() << "RET: Caller saves\n";
 			bdd newpts = rd->saveName & retpts;
+			printBDD(LocationCount,Int2Str,newpts);
 			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
 		} else dbgs() << "RET: Caller doesn't save\n";
 		// if caller's worklist changed, reinsert caller in worklist
