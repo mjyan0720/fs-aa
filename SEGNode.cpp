@@ -136,7 +136,7 @@ void SEGNode::eraseFromParent() {
 
 void SEGNode::dump() const {
 	if(Inst==NULL)
-		dbgs()<<"  \n";
+		dbgs()<<"ENTRY\n";
 	else
 		Inst->dump();
 
@@ -157,7 +157,7 @@ void SEGNode::dump() const {
 raw_ostream &llvm::operator<<(raw_ostream &OS, const SEGNode &SN) {
 	const Instruction *I = SN.getInstruction();
 	if(I==NULL)
-		OS<<"  ";
+		OS<<"ENTRY";
 	else
 		I->print(OS);
 	return OS;
