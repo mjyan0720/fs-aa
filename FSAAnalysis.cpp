@@ -318,7 +318,21 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				//only has one definition, so it won't be merge point for top, don't need
 				//to propagateTop.
 				case Instruction::GetElementPtr:
+				// convert instructions
+				case Instruction::Trunc:
+				case Instruction::ZExt:
+				case Instruction::SExt:
+				case Instruction::FPTrunc:
+				case Instruction::FPExt:
+				case Instruction::FPToUI:
+				case Instruction::FPToSI:
+				case Instruction::UIToFP:
+				case Instruction::SIToFP:
+				case Instruction::IntToPtr:
+				case Instruction::PtrToInt:
 				case Instruction::BitCast:
+//				case Instruction::AddrSpaceCast:
+				//end of convert instructions
 				case Instruction::Invoke:	break;//do nothing for test;
 				default: assert(false && "Out of bounds Instr Type");
 			}
