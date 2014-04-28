@@ -274,7 +274,10 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<ReturnInst>(i)) {
 				preprocessRet(sn);
 			} else if (isa<CastInst>(i) || isa<GetElementPtrInst>(i)) {
-				// TODO: treat as copy
+#ifndef ENABLE_OPT_1
+				// treat as copy
+				preprocessCopy(sn);
+#endif
 			} else if (!sn->isnPnode()) {
 				// do nothing
 			} else {
@@ -339,7 +342,13 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::PtrToInt:
 				// case Instruction::AddrSpaceCast:
 				// end of convert instructions
-				case Instruction::BitCast: propagateAddrTaken(sn); break; // just propagate if necessary
+				case Instruction::BitCast: 
+#ifdef ENABLE_OPT_1
+					propagateAddrTaken(sn);
+#else
+					processCopy(&TopLevelPTS,sn);	
+#endif
+					break;
 				default: assert(false && "Out of bounds Instr Type");
 			}
 

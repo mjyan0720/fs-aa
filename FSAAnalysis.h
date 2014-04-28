@@ -202,7 +202,7 @@ public:
 	int processCall(bdd *tpts,  llvm::SEGNode *sn);
 	int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
-	// helper functions for process copy
+	// helper functions for process call
   std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
   void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
   bdd matchingFunctions(const Value *funCall);

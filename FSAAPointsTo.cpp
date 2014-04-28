@@ -208,13 +208,13 @@ int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn) {
 }
 
 int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
-	const PHINode *phi = cast<PHINode>(sn->getInstruction());
+	const Instruction *inst = sn->getInstruction();
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	bdd argset = bdd_false();
 	unsigned int id;
 	// store static argument data
-	for (User::const_op_iterator oit = phi->op_begin(); oit != phi->op_end(); ++oit) {
+	for (User::const_op_iterator oit = inst->op_begin(); oit != inst->op_end(); ++oit) {
 		// if argument out-of-range, store id 0
 		Value *v = oit->get();
 		//v->dump();
@@ -229,9 +229,9 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 
 	// if arguments are defined, store data to perform relprod
 	if (sn->getDefined()) {
-		// defined var name
+		// defined value name
 		StaticData->push_back(fdd_ithvar(0,sn->getId()));
-		// phi var names for each incoming branch
+		// inst value names for each incoming branch
 		StaticData->push_back(argset);
 		// variables we are quantifying over
 		StaticData->push_back(fdd_ithset(0));
