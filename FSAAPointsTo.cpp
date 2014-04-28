@@ -400,9 +400,26 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	CallData *cd = new CallData();
-	const CallInst *ci = cast<CallInst>(sn->getInstruction());
-	const Value *funv = ci->getCalledValue();	
-	const Function *fun = ci->getCalledFunction();
+	bool isCall = true;
+	const CallInst *ci = NULL;
+	const InvokeInst *ii = NULL;
+	const Value *funv = NULL;
+	const Function *fun = NULL;
+	unsigned int argnum = 0;
+	Value *arg;
+	// check whether an instruction is a call or invoke
+	if (isa<CallInst>(sn->getInstruction())) {
+		ci = cast<CallInst>(sn->getInstruction());
+		funv = ci->getCalledValue();	
+		fun = ci->getCalledFunction();
+		argnum = ci->getNumArgOperands();
+	} else {
+		isCall = false;
+		ii = cast<InvokeInst>(sn->getInstruction());
+		funv = ii->getCalledValue();	
+		fun = ii->getCalledFunction();
+		argnum = ii->getNumArgOperands();
+	}
 	unsigned int id;
 	// check if this function is a pointer and if it is defined
 	cd->isPtr = (fun == NULL);
@@ -418,10 +435,10 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 		sn->setDefined(false);
 	}
 	// iterate through instruction arguments, set argids, generate static data for arguments
-	for (unsigned int i = 0; i < ci->getNumArgOperands(); i++) {
+	for (unsigned int i = 0; i < argnum; i++) {
 		// if argument out-of-range, store id 0
-		Value *v = ci->getArgOperand(i);
-		if (Value2Int.count(v) != 0) id = Value2Int.at(v); 
+		arg = isCall ? ci->getArgOperand(i) : ii->getArgOperand(i);
+		if (Value2Int.count(arg) != 0) id = Value2Int.at(arg); 
 		else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);

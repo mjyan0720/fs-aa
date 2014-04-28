@@ -266,10 +266,14 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 				preprocessLoad(sn);
 			} else if (isa<StoreInst>(i)) {
 				preprocessStore(sn);
-			} else if (isa<CallInst>(i)) {
+			} else if (isa<CallInst>(i) || isa<InvokeInst>(i)) {
 				preprocessCall(sn);
 			} else if (isa<ReturnInst>(i)) {
 				preprocessRet(sn);
+			} else if (isa<CastInst>(i) || isa<GetElementPtrInst>(i)) {
+				// TODO: treat as copy
+			} else if (!sn->isnPnode()) {
+				// do nothing
 			} else {
 				assert(false && "Unknown instruction");
 			}
@@ -291,18 +295,21 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		while (!stmtList->empty()) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
-	
+			// debugging statements	
       DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-      // DEBUG(std::cout<<std::endl);
-	
 			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
-			// DEBUG(fdd_printset(TopLevelPTS));
-
+			// if this is a preserving node, just propagateAddrTaken
+			if (!sn->isnPnode()) {
+				propagateAddrTaken(sn);	
+				continue;
+			}
+			// otherwise, do standard processing
 			switch(sn->getInstruction()->getOpcode()) {
 				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn); break;
 				case Instruction::PHI:		processCopy(&TopLevelPTS,sn);  break;
 				case Instruction::Load:		processLoad(&TopLevelPTS,sn);  break;
 				case Instruction::Store:	processStore(&TopLevelPTS,sn); break;
+				case Instruction::Invoke:
 				case Instruction::Call:   processCall(&TopLevelPTS,sn);  break;
 				case Instruction::Ret:    processRet(&TopLevelPTS,sn);   break;
 				//if it's self-copy instruction, don't need process instruction itself;
@@ -310,8 +317,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				//only has one definition, so it won't be merge point for top, don't need
 				//to propagateTop.
 				case Instruction::GetElementPtr:
-				case Instruction::BitCast:
-				case Instruction::Invoke:	break;//do nothing for test;
+				case Instruction::BitCast: propagateAddrTaken(sn); break; // just propagate if necessary
 				default: assert(false && "Out of bounds Instr Type");
 			}
 
