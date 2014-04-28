@@ -255,14 +255,12 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			SEGNode *sn = &*sni;
 			const Instruction *i = sn->getInstruction();
 			// set SEGNode id if exists in Value Map
-#ifdef ENABLE_OPT_1
-			DEBUG(dbgs()<<sn->singleCopy()<<"\t"<<isa<CastInst>(i)<<"\t"<<*sn<<"\n");
 			if (Value2Int.find(sn->getInstruction())!=Value2Int.end())
 				sn->setId(Value2Int[sn->getInstruction()]);
-			// perform preprocessing on SEGNode
-			if(isa<CastInst>(i) | isa<GetElementPtrInst>(i))
-				continue;
+#ifdef ENABLE_OPT_1
+			DEBUG(dbgs()<<sn->singleCopy()<<"\t"<<isa<CastInst>(i)<<"\t"<<*sn<<"\n");
 #endif
+			// perform preprocessing on SEGNode
 			if (isa<AllocaInst>(i)) {
 				preprocessAlloc(sn);
 			} else if (isa<PHINode>(i)) {
