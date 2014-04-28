@@ -82,9 +82,12 @@ static bddPair* RPAIR            = NULL;
 
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
 	int domain[2];
-	domain[0] = domain[1] = POINTSTO_MAX = domainsize;
+	// initialize bdd library
 	bdd_init(nodes,cachesize);
+	// add necessary bdd variables
+	domain[0] = domain[1] = POINTSTO_MAX = domainsize;
 	assert(fdd_extdomain(domain,2) >= 0);
+	// build bdd pairs
 	LPAIR = bdd_newpair();
 	RPAIR = bdd_newpair();
 	assert(fdd_setpair(LPAIR,1,0) >= 0);
@@ -226,11 +229,14 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 
 	// if arguments are defined, store data to perform relprod
 	if (sn->getDefined()) {
+		// defined var name
 		StaticData->push_back(fdd_ithvar(0,sn->getId()));
+		// phi var names for each incoming branch
 		StaticData->push_back(argset);
+		// variables we are quantifying over
 		StaticData->push_back(fdd_ithset(0));
 	// otherwise, store constant (x points everywhere)
-	} else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
+	} else StaticData->push_back(fdd_ithvar(0,sn->getId()));
 	// assign data
 	sn->setStaticData(StaticData); 
 	return 0;
@@ -248,11 +254,14 @@ int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn) {
 	sn->setArgIds(ArgIds);
 	// store static bdd data
 	if (sn->getDefined()) {
-	StaticData->push_back(fdd_ithvar(0,sn->getId()));
-	StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
-	StaticData->push_back(fdd_ithset(0));
+		// defined var name
+		StaticData->push_back(fdd_ithvar(0,sn->getId()));
+		// value we are loading from name
+		StaticData->push_back(fdd_ithvar(0,ArgIds->at(0)));
+		// variables we are quantifying over
+		StaticData->push_back(fdd_ithset(0));
 	// if load argument is out-of-range, it can point anywhere
-	} else StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithset(1));
+	} else StaticData->push_back(fdd_ithvar(0,sn->getId()));
 	sn->setStaticData(StaticData);
 	// check validity of these guys? VALIDIDX2(x,y);
 	return 0;
@@ -278,8 +287,8 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	ArgIds->push_back(vd ? Value2Int.at(v) : 0);
 	sn->setArgIds(ArgIds);
 	// store bdds for corresponding values, or everything for undefined
-	StaticData->push_back(pd ? fdd_ithvar(0,ArgIds->at(0)) : fdd_ithset(0));
-	StaticData->push_back(vd ? fdd_ithvar(0,ArgIds->at(1)) : fdd_ithset(1));
+	StaticData->push_back(pd ? fdd_ithvar(0,ArgIds->at(0)) : bdd_true());
+	StaticData->push_back(vd ? fdd_ithvar(0,ArgIds->at(1)) : bdd_true());
 	sn->setStaticData(StaticData); 
 	return 0;
 }
@@ -367,6 +376,7 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+// TODO: reachability is too strict
 // ret bdd with pairs that originate either from an argument or a global variable
 bdd genFilterSet(bdd inset, bdd gvarpts, bdd argset) {
 	// if filter can point anywhere, return whole inset
@@ -448,7 +458,7 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 	// if function is defined and doesn't point everywhere, compute it's points-to set
 	if (funId && !pointsTo(*tpts,funId,0)) fpts = bdd_restrict(*tpts,funName);
 	// otherwise, it can point everywhere
-	else fpts = bdd_restrict(*tpts,fdd_ithset(0));
+	else fpts = *tpts;
 	// find which functions pointer points-to and types agree, add to targets
 	for (fmit = Int2Func.begin(); fmit != Int2Func.end(); ++fmit) {
 		// get potential target information
@@ -503,7 +513,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 		}
 		// else, add p -> everything
 		else {
-			newpts = paramName & fdd_ithset(1);
+			newpts = paramName;
 			kill = bdd_true();
 		}
 		// propagate top level for callee
@@ -564,7 +574,7 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 		sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));	
 	} else {
 		sn->getArgIds()->push_back(0);
-		sn->getStaticData()->push_back(fdd_ithset(1));
+		sn->getStaticData()->push_back(bdd_true());
 	}
 	return 0;
 }
