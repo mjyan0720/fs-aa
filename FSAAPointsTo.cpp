@@ -592,7 +592,6 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	} else {
 		dbgs() << "RET VALUE: UNDEFINED\n";
 		retpts = sn->getStaticData()->at(0);
-		printBDD(LocationCount,Int2Str,retpts);
 	}
 	// return if we have no calls
 	if (!Func2Calls.count(sn->getParent()->getFunction())) return 0;
@@ -613,7 +612,6 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		if (rd->callStatus != NO_SAVE) {
 			dbgs() << "RET: Caller saves\n";
 			bdd newpts = rd->saveName & retpts;
-			printBDD(LocationCount,Int2Str,newpts);
 			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
 		} else dbgs() << "RET: Caller doesn't save\n";
 		// if caller's worklist changed, reinsert caller in worklist
