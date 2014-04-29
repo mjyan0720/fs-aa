@@ -117,17 +117,17 @@ void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) 
 				s1 = lt != NULL && lt->count(i) > 0 ? lt->at(i) : NULL;
 				s2 = lt != NULL && lt->count(j) > 0 ? lt->at(j) : NULL;
 				// print out first elt
-				if (s1 != NULL) dbgs() << *s1 << " -> ";
-				else if (lt != NULL) dbgs() << "NOT FOUND: " << i << " -> ";
-				else dbgs() << i << " -> ";
+				if (s1 != NULL) DEBUG(dbgs() << *s1 << " -> ");
+				else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << i << " -> ");
+				else DEBUG(dbgs() << i << " -> ");
 				// print out second elt
-				if (s2 != NULL) dbgs() << *s2 << "\n";
-				else if (lt != NULL) dbgs() << "NOT FOUND: " << j << "\n";
-				else dbgs() << j << "\n";
+				if (s2 != NULL) DEBUG(dbgs() << *s2 << "\n");
+				else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << j << "\n");
+				else DEBUG(dbgs() << j << "\n");
 			}
 		}
 	}
-	if (empty) dbgs() << "EMPTY\n";
+	if (empty) DEBUG(dbgs() << "EMPTY\n");
 }
 
 void printBDD(unsigned int max, bdd b) { printBDD(max,NULL,b); }
@@ -151,19 +151,19 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	bool changed = false;
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != ((*oldtpts | *newpart) & *update)) {
-		dbgs() << "PROPAGATE TOPLEVEL FOR: "<<*sn<<"\n";
+		DEBUG(dbgs() << "PROPAGATE TOPLEVEL FOR: "<<*sn<<"\n");
 		// only append to worklist if absent
 		for(SEGNode::const_user_iterator i = sn->user_begin(); i != sn->user_end(); ++i)
 			if (appendIfAbsent<SEGNode*>(wkl,*i)) {
 				changed = true;
-				dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
+				DEBUG(dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n");
 			}
 	}
 	// update old
 	*oldtpts = (*oldtpts | *newpart) & *update;
 	if (*update != bdd_true()) {
-		dbgs() << "STRONG UPDATE:\n";
-		printBDD(LocationCount,Int2Str,*oldtpts);
+		DEBUG(dbgs() << "STRONG UPDATE:\n");
+		DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
 	}	
 	// return true if the worklist was changed
 	return changed;
@@ -182,10 +182,10 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 		newink = oldink | sn->getOutSet();
 		// append to worklist if inset changed and not already in worklist
 		if (oldink != newink){
-			dbgs()<<"PROPAGATE ADDRTAKEN FOR: "<<*sn<<"\n";
+			DEBUG(dbgs()<<"PROPAGATE ADDRTAKEN FOR: "<<*sn<<"\n");
 			if (appendIfAbsent<SEGNode*>(wkl,succ)) {
 				changed = true;
-				dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n";
+				DEBUG(dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n");
 			}
 			succ->setInSet(newink);
 		}
@@ -280,8 +280,8 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	vd = Value2Int.count(v) != 0;
 	sn->setDefined(pd & vd);
 	
-	//sn->dump();
-	//dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n";
+	// DEBUG(sn->dump());
+	// DEBUG(dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n");
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? Value2Int.at(p) : 0);
 	ArgIds->push_back(vd ? Value2Int.at(v) : 0);
@@ -317,11 +317,11 @@ int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	else
 		newpts = sn->getStaticData()->at(0);
 	// print debugging information
-/*	if (bdd_unsat(newpts))
-		llvm::dbgs() << "empty copy result\n";
+  /* if (bdd_unsat(newpts))
+		DEBUG(dbgs() << "empty copy result\n");
 	else
-		llvm::dbgs() << "not empty\n";
-*/	// store new top-level points-to set
+		DEBUG(dbgs() << "not empty\n");
+	*/// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn);
 	// propagate addr taken
 	sn->setOutSet(sn->getInSet());
@@ -483,12 +483,12 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 		bdd targetName = fdd_ithvar(1,targetId);
 		const Function* target = fmit->second;
 		const Type *targetType = target->getFunctionType();
-		dbgs() << "TARGET: " << *(Int2Str->at(targetId)) << " " << targetType << "\n";
+		DEBUG(dbgs() << "TARGET: " << *(Int2Str->at(targetId)) << " " << targetType << "\n");
 		// check if function pointer points to target
 		if (bdd_sat(fpts & targetName)) {
 			// if so, check if their types match
 			if (targetType == funType) {
-				dbgs() << "TARGET ADDED\n";
+				DEBUG(dbgs() << "TARGET ADDED\n");
 				// add target function to targest list
 				targets->push_back(target);
 				// add target function to caller map with this node as it's caller
@@ -496,7 +496,7 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 			// otherwise, fail (may change this later)
 			} else assert(false && "Types should agree");
 		// pointer does NOT point to target
-		} else dbgs() << "NOT IN POINTS-TO SET\n";
+		} else DEBUG(dbgs() << "NOT IN POINTS-TO SET\n");
 	}
 	return targets;
 }
@@ -511,7 +511,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 	params = entry->getStaticData();
 	call_args = callNode->getStaticData();
 	// debugging calls
-	dbgs() << "TARGET: " << *(target) << "\n";
+	DEBUG(dbgs() << "TARGET: " << *(target) << "\n");
 	assert(params != NULL && call_args != NULL);
 	assert(params->size() == call_args->size());
 	// for each argument
@@ -524,7 +524,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 		// if argument is defined, add p -> Top(a)
 		// and stong update to delete p -> p__argument
 		if (argId != 0) {
-			dbgs() << "KILL: " << paramId+1 << "\n";
+			DEBUG(dbgs() << "KILL: " << paramId+1 << "\n");
 			newpts = paramName & bdd_restrict(*tpts,argName);
 			kill = bdd_not(paramName & fdd_ithvar(1,paramId+1));
 		}
@@ -555,22 +555,22 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	filter = sn->getInSet();
 	cd = static_cast<CallData*>(sn->getExtraData());
 	// debugging calls
-	dbgs() << "BDD FILTER:\n";
-	printBDD(POINTSTO_MAX,filter);
-	dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n";
+	DEBUG(dbgs() << "BDD FILTER:\n");
+	DEBUG(printBDD(POINTSTO_MAX,filter));
+	DEBUG(dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n");
 	// if func is pointer, dynamically compute its targets
 	if (cd->isPtr)
 		targets = computeTargets(tpts,sn,cd->funcId,cd->funcName,cd->funcType);
 	// else get its targets statically
 	else {
-		dbgs() << "NOT PTR\n";
+		DEBUG(dbgs() << "NOT PTR\n");
 		// TODO: if it's declaration, return value points everywhere, propagate both
 		// can use function to get more information like whether pass by reference
 		// or return by reference. check llvm doc for more detail.
 		if (cd->targets->at(0)->isDeclaration()) return 0;
 		targets = cd->targets;
 	}
-	dbgs() << "ENUMERATE TARGETS\n";
+	DEBUG(dbgs() << "ENUMERATE TARGETS\n");
 	// process all computed targets
 	for (target = targets->begin(); target != targets->end(); ++target)
 		processTarget(tpts,sn,filter,*target);
@@ -604,10 +604,10 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	sn->setOutSet(sn->getInSet());
 	// find out where returned value points
 	if (sn->getArgIds()->at(0)) {
-		dbgs() << "RET VALUE: DEFINED\n";
+		DEBUG(dbgs() << "RET VALUE: DEFINED\n");
 		retpts = bdd_restrict(*tpts,sn->getStaticData()->at(0));
 	} else {
-		dbgs() << "RET VALUE: UNDEFINED\n";
+		DEBUG(dbgs() << "RET VALUE: UNDEFINED\n");
 		retpts = sn->getStaticData()->at(0);
 	}
 	// return if we have no calls
@@ -619,18 +619,18 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		RetData *rd = cit->second;
 		SEGNode *callInst = rd->callInst;
 		const Function *caller = callInst->getParent()->getFunction();
-		dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n";
+		DEBUG(dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n");
 		// append my outset to caller's outset
-		printBDD(LocationCount,Int2Str,sn->getOutSet());
+		DEBUG(printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
 		// propagate addr taken and record if worklist changed	
 		changed = propagateAddrTaken(callInst) || changed;
 		// if callsite stores a value, propagate on top level
 		if (rd->callStatus != NO_SAVE) {
-			dbgs() << "RET: Caller saves\n";
+			DEBUG(dbgs() << "RET: Caller saves\n");
 			bdd newpts = rd->saveName & retpts;
 			changed = propagateTopLevel(tpts,&newpts,callInst) || changed;
-		} else dbgs() << "RET: Caller doesn't save\n";
+		} else DEBUG(dbgs() << "RET: Caller doesn't save\n");
 		// if caller's worklist changed, reinsert caller in worklist
 		if (changed) appendIfAbsent<const Function*>(&FuncWorkList,caller);
 	}

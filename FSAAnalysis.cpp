@@ -20,12 +20,12 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// initialize value maps
 	LocationCount = initializeValueMap(M);
 	// initialize bdd library
-	pointsToInit(1000,10000,LocationCount);
+	pointsToInit(100000,10000,LocationCount);
 	// build caller map
 	initializeCallerMap(&getAnalysis<CallGraph>());
 	// printValueMap();
 	Int2Str = reverseMap(&Value2Int);
-	printReverseMap(Int2Str);
+	DEBUG(printReverseMap(Int2Str));
 	// initialize worklists
 	initializeFuncWorkList(M);
 	// do algorithm	
@@ -64,7 +64,7 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
 	}
 	// add callInst to callee's internal map, insert RetData for this call
-	dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n";
+	DEBUG(dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n");
 	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
 }
 
@@ -303,7 +303,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			stmtList->pop_front();
 			// debugging statements	
       DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-			dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n";
+			DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
 			// if this is a preserving node, just propagateAddrTaken
 			if (!sn->isnPnode()) {
 				propagateAddrTaken(sn);	
