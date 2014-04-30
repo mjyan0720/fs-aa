@@ -138,7 +138,7 @@ public:
 	}
 
 	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-	/*  std::map<const Value*, unsigned>::iterator ret1, ret2;
+	  std::map<const Value*, unsigned>::iterator ret1, ret2;
 		const Value *v1, *v2;
 		unsigned int l1, l2;
 		v1 = LocA.Ptr;
@@ -148,10 +148,10 @@ public:
 		l1 = ret1 == Value2Int.end() ? 0 : ret1->second;
 		l2 = ret2 == Value2Int.end() ? 0 : ret2->second;	
 		if (l1 == 0 && l2 == 0) return NoAlias;
-		else if (l1 != 0 && pointsTo(*TopLevelPTS,l1,0)) return MayAlias;
-		else if (l2 != 0 && pointsTo(*TopLevelPTS,l2,0)) return MayAlias;
+		else if (l1 != 0 && pointsTo(TopLevelPTS,l1,0)) return MayAlias;
+		else if (l2 != 0 && pointsTo(TopLevelPTS,l2,0)) return MayAlias;
 		else return aliasCheck(l1,l2);
-	*/
+
 		return MayAlias;
 	}
 

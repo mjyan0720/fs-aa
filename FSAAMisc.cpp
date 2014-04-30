@@ -41,7 +41,7 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		if (isa<GetElementPtrInst>(v) | isa<CastInst>(v))
 			continue;
 #endif	
-		v->dump();
+		DEBUG(v->dump());
 		// add hidden names for each value type that has hidden values
 		if (isa<AllocaInst>(v)) { 
 			insertName(inv,ret,id,name);
