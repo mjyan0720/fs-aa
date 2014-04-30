@@ -27,7 +27,7 @@ Output/%.$(TEST).report.txt: Output/%.linked.rbc $(LOPT) \
 	@echo "---------------------------------------------------------------" >> $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program)" >> $@
 	@echo "---------------------------------------------------------------" >> $@
-	@-$(LOPT) -load=/home/hattie/llvm/llvm/Debug+Asserts/lib/FlowSensitiveAliasAnalysis.so -fs-aa  -debug-only=flowsensitive-aa \
+	@-$(LOPT) -load=$(LLVM_SRC_ROOT)/Debug+Asserts/lib/FlowSensitiveAliasAnalysis.so -fs-aa  -debug-only=flowsensitive-aa \
 	         -time-passes -disable-output $< 2>>$@ 
 summary:
 	@$(MAKE) TEST=fsaa | egrep '======|fsaa -'

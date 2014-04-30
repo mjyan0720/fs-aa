@@ -117,7 +117,7 @@ private:
 public:
 	static char ID;
 	FlowSensitiveAliasAnalysis() : ModulePass(ID){
-	//	initializeFlowSensitiveAliasAnalysisPass(*PassRegistry::getPassRegistry());
+		//initializeFlowSensitiveAliasAnalysisPass(*PassRegistry::getPassRegistry());
 	}
 
 	virtual void initializePass() {
