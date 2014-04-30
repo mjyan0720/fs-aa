@@ -13,21 +13,26 @@
 
 #define DEBUG_TYPE "flowsensitive-aa"
 #include "SEG.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Support/LeakDetector.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
 
+STATISTIC(TotalInst,	"Stetements: The total # of statments");
+STATISTIC(SEGInst,	"SEGInst: The # of Instructions in Data Flow Graph");
+STATISTIC(CallSites,	"Call Sites: The # of Call/Invoke instructions");
 
 using namespace llvm;
-
 
 SEG::SEG(const Function *fn) : Fn(fn){
 	IsDeclaration = fn->isDeclaration();
 	if(IsDeclaration)
 		return;
 	initialize();
+	TotalInst+=size();
 	applyTransformation();
+	SEGInst+=size();
 }
 
 void SEG::dump() const {
@@ -50,6 +55,10 @@ void SEG::initialize() {
 		const BasicBlock *blk = &(*bbi);
 		for(BasicBlock::const_iterator insti=blk->begin(), inste=blk->end(); insti!=inste; ++insti){
 			const Instruction *I = &(*insti);
+
+			if(isa<CallInst>(I)||isa<InvokeInst>(I))
+				CallSites++;
+
 			SEGNode *sn = new SEGNode(I, this);
 			this->insert(sn);
 			inst2sn.insert( std::pair<const Instruction*, SEGNode*>(I, sn) );

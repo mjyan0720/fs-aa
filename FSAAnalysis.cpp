@@ -9,8 +9,10 @@
 // Add description of current file
 //
 //===----------------------------------------------------------------------===//
-
 #include "FSAAnalysis.h"
+#include "llvm/ADT/Statistic.h"
+
+STATISTIC(Functions, "Functions: The # of functions in the module");
 
 using namespace llvm;
 
@@ -37,6 +39,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for (Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
+		Functions ++;
 		const Function * f = &*mi;
 		// build SEG
 		SEG *seg = new SEG(f);
