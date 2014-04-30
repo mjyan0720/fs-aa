@@ -39,18 +39,18 @@ struct RetData {
 	 	const llvm::Instruction *i = sn->getInstruction();
 		// if return value is not used, I don't care about it
 		if (i->getType()->isVoidTy()) {
-			llvm::dbgs() << "RETDATA: NO SAVE\n";
+			DEBUG(llvm::dbgs() << "RETDATA: NO SAVE\n");
 			callStatus = NO_SAVE;
 			saveName   = bdd_false();
 		// otherwise, check if it is defined
 		} else if (im->count(i)) {
-			llvm::dbgs() << "RETDATA: DEF SAVE " << i->getName() << " WITH " << im->at(i) << "\n";
+			DEBUG(llvm::dbgs() << "RETDATA: DEF SAVE " << i->getName() << " WITH " << im->at(i) << "\n");
 			callStatus = DEF_SAVE;
 			saveName   = fdd_ithvar(0,im->at(i));
 			assert(saveName != bdd_false());
 		// otherwise, it is undefined
 		} else {
-			llvm::dbgs() << "RETDATA: UNDEF SAVE " << i->getName() << "\n";
+			DEBUG(llvm::dbgs() << "RETDATA: UNDEF SAVE " << i->getName() << "\n");
 			callStatus = UNDEF_SAVE;
 			saveName   = fdd_ithset(0);
 		}
