@@ -1,0 +1,50 @@
+#!/bin/bash
+
+LLVM_SRC_ROOT="/home/megaman/llvm-3.4"
+LLVM_BIN="$LLVM_SRC_ROOT/Debug+Asserts/bin"
+LLVM_LIB="$LLVM_SRC_ROOT/Debug+Asserts/lib"
+DEBUG=""
+OUTPUT=""
+SILENT=""
+
+print_usage () {
+  echo "Usage: opt [-d] [-s] [-o outputfile] [other opt arguments] input-file"
+  echo "	-d : enable debugging output for fsaa"
+  echo "	-s : suppress all output to terminal"
+  echo "	-o : write llvm IR to file outputfile"
+}
+
+# check if we dump debugging information
+while getopts ":do:sh" opt; do
+  case $opt in
+    d)
+      DEBUG="-debug-only=flowsensitive-aa"
+      ;;
+    o)
+      OUTPUT="-S $OPTARG"
+      ;;
+    s)
+      SILENT="true"
+      ;;
+    h)
+      print_usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+# shift arguments down
+shift $((OPTIND-1))
+
+# call program
+ARGS=$OUTPUT $DEBUG
+if [ -z "$SILENT" ]; then
+  $LLVM_BIN/opt -load $LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
+else
+  $LLVM_BIN/opt -load $LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
+fi
