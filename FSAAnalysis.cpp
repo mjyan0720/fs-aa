@@ -305,7 +305,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 			// debugging statements	
-      DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
+			// DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
 			DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
 			// if this is a preserving node, just propagateAddrTaken
 			if (!sn->isnPnode()) {
@@ -356,8 +356,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 
 			// print out sets
-			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
-			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
+			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
+			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
   DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));

@@ -6,6 +6,8 @@ LLVM_LIB="$LLVM_SRC_ROOT/Debug+Asserts/lib"
 DEBUG=""
 OUTPUT=""
 SILENT=""
+VERBOSE=""
+COMMAND=""
 
 print_usage () {
   echo "Usage: opt [-d] [-s] [-o outputfile] [other opt arguments] input-file"
@@ -15,10 +17,13 @@ print_usage () {
 }
 
 # check if we dump debugging information
-while getopts ":do:sh" opt; do
+while getopts ":dvo:sh" opt; do
   case $opt in
     d)
-      DEBUG="-debug-only=flowsensitive-aa"
+      DEBUG="true"
+      ;;
+    v)
+      VERBOSE="-debug-only=flowsensitive-aa"
       ;;
     o)
       OUTPUT="-S $OPTARG"
@@ -41,10 +46,25 @@ done
 # shift arguments down
 shift $((OPTIND-1))
 
+# do nothing if we have no arguments
+if [ -z "$@" ]; then
+  print_usage
+  exit 1
+fi
+
+# setup command
+ARGS="$OUTPUT $VERBOSE"
+
 # call program
-ARGS=$OUTPUT $DEBUG
-if [ -z "$SILENT" ]; then
-  $LLVM_BIN/opt -load $LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
+if [ -z "$DEBUG" ]; then
+  if [ -z "$SILENT" ]; then
+    echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
+    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
+  else
+    echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
+    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@ &> /dev/null
+  fi
 else
-  $LLVM_BIN/opt -load $LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
+  echo gdb --args "$LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@"
+  gdb --args "$LLVM_BIN/opt" -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
 fi
