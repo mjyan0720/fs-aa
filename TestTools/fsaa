@@ -59,12 +59,12 @@ ARGS="$OUTPUT $VERBOSE"
 if [ -z "$DEBUG" ]; then
   if [ -z "$SILENT" ]; then
     echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
-    $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
+    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
   else
     echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
-    $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
+    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@ &> /dev/null
   fi
 else
   echo gdb --args "$LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@"
-  gdb --args "$LLVM_BIN/opt" -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
+  gdb --args "$LLVM_BIN/opt" -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
 fi
