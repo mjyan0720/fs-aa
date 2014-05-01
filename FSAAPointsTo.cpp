@@ -81,12 +81,18 @@ static bddPair* RPAIR            = NULL;
 #define VALIDIDX2(i,j)   assert(i < POINTSTO_MAX && j < POINTSTO_MAX)
 
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
+	int errc;
 	int domain[2];
 	// initialize bdd library
-	bdd_init(nodes,cachesize);
+	assert(!bdd_isrunning());
+	errc = bdd_init(nodes,cachesize);
+	if (errc < 0) dbgs() << bdd_errstring(errc) << "\n";
+	assert(bdd_isrunning());
 	// add necessary bdd variables
 	domain[0] = domain[1] = POINTSTO_MAX = domainsize;
-	assert(fdd_extdomain(domain,2) >= 0);
+	errc = fdd_extdomain(domain,2);
+	if (errc < 0) dbgs() << bdd_errstring(errc) << "\n";
+	assert(errc >= 0);
 	// build bdd pairs
 	LPAIR = bdd_newpair();
 	RPAIR = bdd_newpair();
@@ -105,6 +111,7 @@ bool pointsTo(bdd rel, unsigned int v1, unsigned int v2) {
 	return bdd_sat(rel & fdd_ithvar(0,v1) & fdd_ithvar(1,v2));
 }
 
+// print out a single points-to mapping from Value named i to Valued named j
 void printMapping(std::map<unsigned int,std::string*> *lt, int i, int j) {
 	std::string *s1,*s2;
 	// check if these strings have a non-null mapping
@@ -120,21 +127,26 @@ void printMapping(std::map<unsigned int,std::string*> *lt, int i, int j) {
 	else DEBUG(dbgs() << j << "\n");
 }
 
+// print out a whole BDD; note that this will be very slow for large BDDs
 void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) {
 	unsigned int i, j;
 	bool empty = true;
 	for (i=0;i<max;++i) {
+		// if variable points everywhere, just print points to everything
 		if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,0))) {
+			empty = false;
 			printMapping(lt,i,0);
 			continue;
 		}
-		for (j=0;j<max;++j) {
+		// otherwise, find out where it actually points
+		for (j=1;j<max;++j) {
 			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j))) {
 				empty = false;
 				printMapping(lt,i,j);
 			}
 		}
 	}
+	// if set is is empty, print empty
 	if (empty) DEBUG(dbgs() << "EMPTY\n");
 }
 
@@ -148,11 +160,13 @@ bool inline appendIfAbsent(std::list<T> *wkl, T elt) {
 	return i == wkl->end();
 }
 
+// propagate top level without strong update
 bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, SEGNode *sn) {
 	bdd tmp = bdd_true();
 	return propagateTopLevel(oldtpts,newpart,&tmp,sn);
 }
 
+// propagate top level with strong update
 bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd* update, SEGNode *sn) {
 	const Function *f = sn->getParent()->getFunction();
 	std::list<SEGNode*> *wkl = StmtWorkList.at(f);
@@ -177,6 +191,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	return changed;
 }
 
+// propagate address taken
 bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 	bdd oldink, newink;
 	const Function *f = sn->getParent()->getFunction();
@@ -325,7 +340,7 @@ int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	else
 		newpts = sn->getStaticData()->at(0);
 	// print debugging information
-  /* if (bdd_unsat(newpts))
+	/* if (bdd_unsat(newpts))
 		DEBUG(dbgs() << "empty copy result\n");
 	else
 		DEBUG(dbgs() << "not empty\n");
@@ -491,7 +506,7 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 		bdd targetName = fdd_ithvar(1,targetId);
 		const Function* target = fmit->second;
 		const Type *targetType = target->getFunctionType();
-		DEBUG(dbgs() << "TARGET: " << *(Int2Str->at(targetId)) << " " << targetType << "\n");
+		DEBUG(dbgs() << "CHECK FUNTYPE: "; funType->dump(); dbgs() << " TARGET: " << target->getName() << " : "; targetType->dump(); dbgs() << "\n");
 		// check if function pointer points to target
 		if (bdd_sat(fpts & targetName)) {
 			// if so, check if their types match

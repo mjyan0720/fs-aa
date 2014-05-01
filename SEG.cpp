@@ -69,7 +69,7 @@ void SEG::initialize() {
 	const Instruction *firstInst = &*(Fn->begin()->begin());
 	SEGNode *firstSN = inst2sn.find(firstInst)->second;
 	EntryNode->addSuccessor(firstSN);
-	DEBUG(errs()<<"Set edges: "<<*EntryNode<<" --> "<<*firstSN<<"\n");
+	// DEBUG(errs()<<"Set edges: "<<*EntryNode<<" --> "<<*firstSN<<"\n");
 
 	// set up uses for entrySN
 	for(Function::const_arg_iterator ai=Fn->arg_begin(), ae=Fn->arg_end(); ai!=ae; ++ai){
@@ -80,7 +80,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *useSN = inst2sn.find(useInst)->second;
 			EntryNode->addUser(useSN);
-			DEBUG(errs()<<"Set uses: "<<*EntryNode<<" --> "<<*useSN<<"\n");
+			// DEBUG(errs()<<"Set uses: "<<*EntryNode<<" --> "<<*useSN<<"\n");
 		}
 	}
 
@@ -96,7 +96,7 @@ void SEG::initialize() {
 				assert(inst2sn.find(succInst)!=inst2sn.end() && "successor instruction is not in seg");
 				SEGNode *succSN = inst2sn.find(succInst)->second;
 				sn->addSuccessor(succSN);
-				DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
+				// DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
 			}
 		} else {
 			const Instruction *succInst = blk->getInstList().getNext(I);
@@ -105,7 +105,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(succInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *succSN = inst2sn.find(succInst)->second;
 			sn->addSuccessor(succSN);
-			DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
+			// DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
 		}
 		for(Value::const_use_iterator usei=I->use_begin(), usee=I->use_end(); usei!=usee; ++usei){
 			const Instruction *useInst = dyn_cast<Instruction>(*usei);
@@ -113,7 +113,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *useSN = inst2sn.find(useInst)->second;
 			sn->addUser(useSN);
-			DEBUG(errs()<<"Set uses: "<<*sn<<" --> "<<*useSN<<"\n");
+			// DEBUG(errs()<<"Set uses: "<<*sn<<" --> "<<*useSN<<"\n");
 		}
 #ifdef ENABLE_OPT_1
 		// detect whether there exists a singlecopy cycle
@@ -152,7 +152,7 @@ void SEG::initialize() {
 		}
 #endif
 	}
-	DEBUG(this->dump());
+	// DEBUG(this->dump());
 }
 
 
@@ -192,8 +192,8 @@ void SEG::applyTransformation(){
 				sn->removeSuccessor(sn);
 			}
 			if(sn->pred_size()==1){
-				DEBUG(errs()<<"Apply T2 : ");
-				DEBUG(sn->dump());
+				DEBUG(errs()<<"Apply T2 : \n");
+				// DEBUG(sn->dump());
 				SEGNode *pred = *(sn->pred_begin());
 				pred->transferSuccessor(sn);
 				pred->removeSuccessor(sn);
@@ -202,8 +202,8 @@ void SEG::applyTransformation(){
 				change = true;
 				WorkList.erase(sn);
 			} else if(sn->succ_size()==1) {
-				DEBUG(errs()<<"Apply T2 : ");
-				DEBUG(sn->dump());
+				DEBUG(errs()<<"Apply T2 : \n");
+				// DEBUG(sn->dump());
 				SEGNode *succ = *(sn->succ_begin());
 				succ->transferPredecessor(sn);
 				sn->removeSuccessor(succ);
@@ -231,10 +231,10 @@ void SEG::applyTransformation(){
 
 			if(applicable){//all nodes in SCC are Pnodes
 				DEBUG(errs()<<"Apply T4("<<SCC.size()<<") : \n");
-				DEBUG(
+				/* DEBUG(
 					for(unsigned i=0, e=SCC.size(); i!=e; ++i)
 						errs()<<"  "<<*SCC[i]<<"\n"
-				);
+				); */
 				//keep the first one as header
 				SEGNode *header = SCC[0];
 				for(unsigned i=1, e=SCC.size(); i!=e; ++i){

@@ -22,7 +22,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// initialize value maps
 	LocationCount = initializeValueMap(M);
 	// initialize bdd library
-	pointsToInit(1000000,100000,LocationCount);
+	pointsToInit(30000000,1000000,LocationCount);
 	// build caller map
 	initializeCallerMap(&getAnalysis<CallGraph>());
 	// printValueMap();
@@ -45,7 +45,7 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 		SEG *seg = new SEG(f);
 		// extend our inst node map by this SEG
 		seg->extendInstNodeMap(&Inst2Node);
-		DEBUG(seg->dump());
+		// DEBUG(seg->dump());
 		Func2SEG.insert( std::pair<const Function*, SEG*>(f, seg) );
 	}
 }
@@ -158,11 +158,11 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 #ifdef ENABLE_OPT_1
 		for(std::vector<SEGNode *>::iterator vi=SingleCopySNs.begin(), ve=SingleCopySNs.end(); vi!=ve; ++vi){
 			SEGNode *sn = *vi;
-			DEBUG(sn->dump());
+			// DEBUG(sn->dump());
 			const Instruction *inst = sn->getInstruction();
 			const Value *from = sn->getSource();
 			assert( from!=NULL && "must has a source value");
-			DEBUG(from->dump());
+			// DEBUG(from->dump());
 			std::map<const Value*, unsigned>::iterator mi = Value2Int.find(from);
 			assert( mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
 			DEBUG(dbgs()<<"assign "<<mi->second<<" to\t"<<*sn<<"\n");

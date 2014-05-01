@@ -27,7 +27,7 @@ while getopts ":dvo:sh" opt; do
       VERBOSE="-debug-only=flowsensitive-aa"
       ;;
     o)
-      OUTPUT="-S $OPTARG"
+      OUTPUT="-S -o $OPTARG"
       ;;
     s)
       SILENT="true"
