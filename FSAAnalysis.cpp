@@ -22,7 +22,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// initialize value maps
 	LocationCount = initializeValueMap(M);
 	// initialize bdd library
-	pointsToInit(100000,10000,LocationCount);
+	pointsToInit(1000000,100000,LocationCount);
 	// build caller map
 	initializeCallerMap(&getAnalysis<CallGraph>());
 	// printValueMap();
