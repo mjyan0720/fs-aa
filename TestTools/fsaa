@@ -10,8 +10,9 @@ VERBOSE=""
 COMMAND=""
 
 print_usage () {
-  echo "Usage: opt [-d] [-s] [-o outputfile] [other opt arguments] input-file"
-  echo "	-d : enable debugging output for fsaa"
+  echo "Usage: opt [-d] [-v] [-s] [-o outputfile] [other opt arguments] input-file"
+  echo "	-d : run fsaa in GDB"
+  echo "	-v : enable debugging output for fsaa"
   echo "	-s : suppress all output to terminal"
   echo "	-o : write llvm IR to file outputfile"
 }
