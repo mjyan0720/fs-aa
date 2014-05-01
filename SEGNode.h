@@ -23,7 +23,7 @@
 #include <set>
 #include <vector>
 
-//#define ENABLE_OPT_1
+#define ENABLE_OPT_1
 
 struct ExtraData;
 

@@ -32,7 +32,6 @@ SEG::SEG(const Function *fn) : Fn(fn){
 	initialize();
 	TotalInst+=size();
 	applyTransformation();
-	SEGInst+=size();
 }
 
 void SEG::dump() const {
@@ -60,6 +59,13 @@ void SEG::initialize() {
 				CallSites++;
 
 			SEGNode *sn = new SEGNode(I, this);
+#ifndef ENABLE_OPT_1
+			if(sn->isnPnode())
+				SEGInst++;
+#else
+			if(sn->isnPnode() && !sn->singleCopy())
+				SEGInst++;
+#endif
 			this->insert(sn);
 			inst2sn.insert( std::pair<const Instruction*, SEGNode*>(I, sn) );
 		}	
