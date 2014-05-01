@@ -105,25 +105,33 @@ bool pointsTo(bdd rel, unsigned int v1, unsigned int v2) {
 	return bdd_sat(rel & fdd_ithvar(0,v1) & fdd_ithvar(1,v2));
 }
 
+void printMapping(std::map<unsigned int,std::string*> *lt, int i, int j) {
+	std::string *s1,*s2;
+	// check if these strings have a non-null mapping
+	s1 = lt != NULL && lt->count(i) > 0 ? lt->at(i) : NULL;
+	s2 = lt != NULL && lt->count(j) > 0 ? lt->at(j) : NULL;
+	// print out first elt
+	if (s1 != NULL) DEBUG(dbgs() << *s1 << " -> ");
+	else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << i << " -> ");
+	else DEBUG(dbgs() << i << " -> ");
+	// print out second elt
+	if (s2 != NULL) DEBUG(dbgs() << *s2 << "\n");
+	else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << j << "\n");
+	else DEBUG(dbgs() << j << "\n");
+}
+
 void printBDD(unsigned int max, std::map<unsigned int,std::string*> *lt, bdd b) {
 	unsigned int i, j;
 	bool empty = true;
 	for (i=0;i<max;++i) {
+		if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,0))) {
+			printMapping(lt,i,0);
+			continue;
+		}
 		for (j=0;j<max;++j) {
 			if (bdd_sat(b & fdd_ithvar(0,i) & fdd_ithvar(1,j))) {
 				empty = false;
-				std::string *s1,*s2;
-				// check if these strings have a non-null mapping
-				s1 = lt != NULL && lt->count(i) > 0 ? lt->at(i) : NULL;
-				s2 = lt != NULL && lt->count(j) > 0 ? lt->at(j) : NULL;
-				// print out first elt
-				if (s1 != NULL) DEBUG(dbgs() << *s1 << " -> ");
-				else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << i << " -> ");
-				else DEBUG(dbgs() << i << " -> ");
-				// print out second elt
-				if (s2 != NULL) DEBUG(dbgs() << *s2 << "\n");
-				else if (lt != NULL) DEBUG(dbgs() << "NOT FOUND: " << j << "\n");
-				else DEBUG(dbgs() << j << "\n");
+				printMapping(lt,i,j);
 			}
 		}
 	}
@@ -163,7 +171,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	*oldtpts = (*oldtpts | *newpart) & *update;
 	if (*update != bdd_true()) {
 		DEBUG(dbgs() << "STRONG UPDATE:\n");
-		DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
+		// DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
 	}	
 	// return true if the worklist was changed
 	return changed;
@@ -494,7 +502,9 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 				// add target function to caller map with this node as it's caller
 				addCaller(funNode,target);
 			// otherwise, fail (may change this later)
-			} else assert(false && "Types should agree");
+			}
+			// NOTE: if this would be a bad call, C semantics is undefined and we don't care
+			// else assert(false && "Types should agree");
 		// pointer does NOT point to target
 		} else DEBUG(dbgs() << "NOT IN POINTS-TO SET\n");
 	}
@@ -555,8 +565,8 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	filter = sn->getInSet();
 	cd = static_cast<CallData*>(sn->getExtraData());
 	// debugging calls
-	DEBUG(dbgs() << "BDD FILTER:\n");
-	DEBUG(printBDD(POINTSTO_MAX,filter));
+	// DEBUG(dbgs() << "BDD FILTER:\n");
+	// DEBUG(printBDD(POINTSTO_MAX,filter));
 	DEBUG(dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n");
 	// if func is pointer, dynamically compute its targets
 	if (cd->isPtr)
@@ -621,7 +631,7 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		const Function *caller = callInst->getParent()->getFunction();
 		DEBUG(dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n");
 		// append my outset to caller's outset
-		DEBUG(printBDD(LocationCount,Int2Str,sn->getOutSet()));
+		// DEBUG(printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
 		// propagate addr taken and record if worklist changed	
 		changed = propagateAddrTaken(callInst) || changed;
