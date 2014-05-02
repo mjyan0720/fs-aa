@@ -9,9 +9,9 @@ using namespace std;
 #define bdd_sat(b)   ((b) != bdd_false())
 
 // Global to track size of POINTSTO bdd
-static unsigned int POINTSTO_MAX = 0;
-static bddPair* LPAIR            = NULL;
-static bddPair* RPAIR            = NULL;
+unsigned int POINTSTO_MAX = 0;
+bddPair* LPAIR            = NULL;
+bddPair* RPAIR            = NULL;
 
 void pointsToInit(unsigned int nodes, unsigned int cachesize, unsigned int domainsize) {
 	int errc;
