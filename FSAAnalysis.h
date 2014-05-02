@@ -1,7 +1,7 @@
 #ifndef FSAANALYSIS_H
 #define FSAANALYSIS_H
 
-#define DEBUG_TYPE "flowsensitive-aa"
+//#define DEBUG_TYPE "flowsensitive-aa"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFG.h"

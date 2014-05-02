@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "flowsensitive-aa"
+//#define DEBUG_TYPE "flowsensitive-aa"
 #include "SEGNode.h"
 #include "SEG.h"
 #include "llvm/Support/LeakDetector.h"

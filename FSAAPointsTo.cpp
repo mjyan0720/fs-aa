@@ -1,4 +1,4 @@
-#define DEBUG_TYPE "flowsensitive-aa"
+//#define DEBUG_TYPE "flowsensitive-aa"
 #include "llvm/Support/Debug.h"
 #include <iostream>
 #include <cstdio>
