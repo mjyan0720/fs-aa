@@ -529,18 +529,22 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 // propagate points-to information from caller to callee
 void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd filter, const Function *target) {
 	std::vector<bdd> *params, *call_args;
-	unsigned int paramId, argId;
+	unsigned int paramId, argId, argsize;
 	bdd paramName, argName, kill, newpts;
+	bool varargs;
 	// get necessary data
 	SEGNode *entry = Func2SEG.at(target)->getEntryNode();
 	params = entry->getStaticData();
 	call_args = callNode->getStaticData();
+	varargs = target->isVarArg();
 	// debugging calls
-	DEBUG(dbgs() << "TARGET: " << *(target) << "\n");
+	DEBUG(dbgs() << "TARGET: " << target->getName() << "\n");
 	assert(params != NULL && call_args != NULL);
-	assert(params->size() == call_args->size());
-	// for each argument
-	for (unsigned int i = 0; i < call_args->size(); i++) {
+	assert(params->size() == call_args->size() ||
+		(varargs && params->size() <= call_args->size()));
+	// for each argument (except varargs, which we don't support)
+	argsize = varargs ? params->size() - 1 : params->size();
+	for (unsigned int i = 0; i < argsize; i++) {
 		// get necessary data
 		paramName = params->at(i);
 		argName = call_args->at(i);
