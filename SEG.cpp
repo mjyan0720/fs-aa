@@ -11,13 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "flowsensitive-aa"
+//#define DEBUG_TYPE "flowsensitive-aa"
 #include "SEG.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/LeakDetector.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/IR/Constants.h"
 
 STATISTIC(TotalInst,	"Stetements: The total # of statments");
 STATISTIC(SEGInst,	"SEGInst: The # of Instructions in Data Flow Graph");
@@ -32,7 +33,6 @@ SEG::SEG(const Function *fn) : Fn(fn){
 	initialize();
 	TotalInst+=size();
 	applyTransformation();
-	SEGInst+=size();
 }
 
 void SEG::dump() const {
@@ -60,6 +60,13 @@ void SEG::initialize() {
 				CallSites++;
 
 			SEGNode *sn = new SEGNode(I, this);
+#ifndef ENABLE_OPT_1
+			if(sn->isnPnode())
+				SEGInst++;
+#else
+			if(sn->isnPnode() && !sn->singleCopy())
+				SEGInst++;
+#endif
 			this->insert(sn);
 			inst2sn.insert( std::pair<const Instruction*, SEGNode*>(I, sn) );
 		}	
@@ -120,24 +127,31 @@ void SEG::initialize() {
 		// if exists, break it by unset singlecopy of the header
 		// otherwise, set source for singlecopy
 		SEGNode *header = sn;
-		const Value *from = NULL;
-		while(sn->singleCopy()==true && sn->getSource()==NULL){
-			const Instruction *I = sn->getInstruction();
-			from = NULL;
-			if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
-				from = inst->getPointerOperand();
-			} else if(const CastInst *inst = dyn_cast<CastInst>(I)){
-				from = inst->getOperand(0);
-			}
+                const Value *from = NULL;
+                while(sn->singleCopy()==true && sn->getSource()==NULL){
+                        const Instruction *I = sn->getInstruction();
+/*                     from = NULL;
+                        if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
+                                from = inst->getPointerOperand();
+                        } else if(const CastInst *inst = dyn_cast<CastInst>(I)){
+                                from = inst->getOperand(0);
+                        }
+*/			from = I->getOperand(0);
 			assert(from!=NULL && "not support for all singleCopy instruction type");
-			// possiblly use Argument at right hand side
-			if(isa<Instruction>(from)==false){
-				header->setSource(from);
-				break;
-			}
-			SEGNode *fromSn = inst2sn[cast<Instruction>(from)];
-			if(fromSn->isnPnode()==false && sn != header){
-				header->setSource(sn->getInstruction());
+                        // possiblly use Argument at right hand side
+                        while(isa<Argument>(from) || isa<GlobalValue>(from) || isa<ConstantExpr>(from)){
+                                if(isa<Argument>(from) || isa<GlobalValue>(from)){
+                                        header->setSource(from);
+                                        break;
+                                }
+                                const ConstantExpr *cexpr = dyn_cast<ConstantExpr>(from);
+                                from = cexpr->getOperand(0);
+                        }
+                        if(header->getSource()!=NULL)
+                               break;
+                        SEGNode *fromSn = inst2sn[cast<Instruction>(from)];
+                        if(fromSn->isnPnode()==false && sn != header){
+                                header->setSource(sn->getInstruction());
 			} else if(fromSn->isnPnode()==false && sn == header ) {
 				header->unsetSingleCopy();
 			} else if(fromSn == header){//a cycle detected, impossible to have cycle
