@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# configurable by user for correct folder
+LLVM_SRC_ROOT="/home/megaman/llvm-3.4"
+LLVM_BIN="$LLVM_SRC_ROOT/Debug+Asserts/bin"
+LLVM_LIB="$LLVM_SRC_ROOT/Debug+Asserts/lib"
+
+# should be right if the above is configured
+FSAA_LIB="-load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so"
+CHECKER_LIB="-load=$LLVM_LIB/checker.so"
+JF_LOG_BC="$LLVM_SRC_ROOT/lib/jf-rt/jf_log.bc"
+JF_CMAP_BC="$LLVM_SRC_ROOT/lib/jf-rt/jf_checker_map.bc"
+JF_LOG_SRC="$LLVM_SRC_ROOT/lib/jf-rt/native/jf_log.cpp"
+JF_CMAP_SRC="$LLVM_SRC_ROOT/lib/jf-rt/jf_checker_map.cpp"
+JF_INCLUDE="-I $LLVM_SRC_ROOT/lib/jf-rt -I $LLVM_SRC_ROOT/lib/jf-rt/native -I $LLVM_SRC_ROOT/include"
+
+# command names
+OPT="$LLVM_BIN/opt"
+CLANG="clang"
+LLVM_LINK="llvm-link-3.4"
+LLI="lli-3.4"
+
+# argument storage
+VERBOSE=""
+REMOVE=""
+
+print_usage () {
+  echo "Usage: checker [-v] input-file"
+  echo "	-v : enable debugging output for fsaa"
+}
+
+# check if we dump debugging information
+while getopts ":vh" opt; do
+  case $opt in
+    v)
+      VERBOSE="-debug-only=flowsensitive-aa"
+      ;;
+    h)
+      print_usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+# shift arguments down
+shift $((OPTIND-1))
+
+# do nothing if we have wrong number of arguments
+if [ "$#" != "1" ]; then
+  print_usage
+  exit 1
+fi
+
+# check checker's files we need are compiled
+if [ ! -f "$JF_LOG_BC" ]; then
+  echo "$CLANG -emit-llvm -c $JF_LOG_SRC $JF_INCLUDE -o $JF_LOG_BC || exit 1"
+  $CLANG -emit-llvm -c $JF_LOG_SRC $JF_INCLUDE -o $JF_LOG_BC || exit 1
+fi
+if [ ! -f "$JF_CMAP_BC" ]; then
+  echo "$CLANG -emit-llvm -c $JF_CMAP_SRC $JF_INCLUDE -o $JF_CMAP_BC || exit 1"
+  $CLANG -emit-llvm -c $JF_CMAP_SRC $JF_INCLUDE -o $JF_CMAP_BC || exit 1
+fi
+
+# get our files names used in this compilation
+INPUT="$@"
+MIDDLE="$@.mid.bc"
+OUTPUT="$@.out.bc"
+# run the checker tool
+echo "$OPT $FSAA_LIB $CHECKER_LIB -fs-aa -check-aa $VERBOSE $INPUT -o $MIDDLE || exit 1"
+$OPT $FSAA_LIB $CHECKER_LIB -fs-aa -check-aa $VERBOSE $INPUT -o $MIDDLE || exit 1
+# link to get the output
+echo "$LLVM_LINK $MIDDLE $JF_CMAP_BC $JF_LOG_BC -o $OUTPUT || exit 1"
+$LLVM_LINK $MIDDLE $JF_CMAP_BC $JF_LOG_BC -o $OUTPUT || exit 1
+# assemble it
+echo "$LLI $OUTPUT"
+$LLI $OUTPUT

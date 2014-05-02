@@ -3,14 +3,16 @@
 LLVM_SRC_ROOT="/home/megaman/llvm-3.4"
 LLVM_BIN="$LLVM_SRC_ROOT/Debug+Asserts/bin"
 LLVM_LIB="$LLVM_SRC_ROOT/Debug+Asserts/lib"
+FSAA_LIB="-load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so"
+OPT="$LLVM_BIN/opt"
+VERBOSE=""
 DEBUG=""
 OUTPUT=""
 SILENT=""
 VERBOSE=""
-COMMAND=""
 
 print_usage () {
-  echo "Usage: opt [-d] [-v] [-s] [-o outputfile] [other opt arguments] input-file"
+  echo "Usage: fsaa [-d] [-v] [-s] [-o outputfile] [other opt arguments] input-file"
   echo "	-d : run fsaa in GDB"
   echo "	-v : enable debugging output for fsaa"
   echo "	-s : suppress all output to terminal"
@@ -59,13 +61,13 @@ ARGS="$OUTPUT $VERBOSE"
 # call program
 if [ -z "$DEBUG" ]; then
   if [ -z "$SILENT" ]; then
-    echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@
-    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
+    echo $OPT $FSAA_LIB -fs-aa $ARGS $@
+    $OPT $FSAA_LIB -fs-aa $ARGS $@
   else
-    echo $LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@ &> /dev/null
-    $LLVM_BIN/opt -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@ &> /dev/null
+    echo "$OPT $FSAA_LIB -fs-aa $ARGS $@ &> /dev/null"
+    $OPT $FSAA_LIB -fs-aa $ARGS $@ &> /dev/null
   fi
 else
-  echo gdb --args "$LLVM_BIN/opt -load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so -fs-aa $ARGS $@"
-  gdb --args "$LLVM_BIN/opt" -load="$LLVM_LIB/FlowSensitiveAliasAnalysis.so" -fs-aa $ARGS $@
+  echo gdb --args "$OPT $FSAA_LIB -fs-aa $ARGS $@"
+  gdb --args $OPT $FSAA_LIB -fs-aa $ARGS $@
 fi
