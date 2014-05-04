@@ -236,8 +236,45 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	entry->setStaticData(StaticData);
 }
 
-void processGlobal(unsigned int id, bdd *tpts) {
+void preprocessGlobal(unsigned int id, bdd *tpts) {
 	*tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
+}
+
+// recurse through nested constants to find an underlying value
+const Value *unwindConstant(const Constant *c) {
+	Instruction *i;
+	// handle constant expr case
+	if (isa<ConstantExpr>(c)) {
+		i = cast<ConstantExpr>(const_cast<Constant*>(c))->getAsInstruction();
+		// if this instruction is a cast, recurse on it's first operand
+		if (i->isCast())
+			unwindConstant(cast<Constant>(i->getOperand(0)));
+		// if it is a GEP, get it's pointer
+		else if (isa<GetElementPtrInst>(i))
+			unwindConstant(cast<Constant>(cast<GetElementPtrInst>(i)->getPointerOperand()));
+	// handle function or global variable case case
+	} else if (isa<Function>(c) || isa<GlobalVariable>(c)) {
+			return c;
+	}
+	// we don't know how to handle this instruction; exit
+	return NULL;
+}
+
+// process simple constant expressions in global declarations
+void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
+	unsigned int cid;
+	const Value *v;
+	// if this global has no initializer, ignore it
+	if (!g->hasInitializer()) return;
+	// get the value from this global's constant expression
+	v = unwindConstant(g->getInitializer());
+	// if the value is not in the value map, ignore it
+	if (v == NULL || !Value2Int.count(v)) return;
+	// otherwise, update the BDD so the global points to the constant value
+	// dbgs() << "ADDING MAPPING: " << g->getName() << " -> " << v->getName() << "\n";
+	cid = Value2Int.at(v);
+	*tpts = (*tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,cid))) &
+		bdd_not(fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
@@ -247,10 +284,13 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
-		processGlobal(Value2Int.at(v), &TopLevelPTS);
+		preprocessGlobal(Value2Int.at(v), &TopLevelPTS);
 		// add them to global variable pointer set
 		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
+	// process all global variables with constant expressions
+	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
+		processGlobal(Value2Int.at(&*mi),&TopLevelPTS,&*mi);
 	// TODO: does single copy need preprocessing???
 	// iterate through each function and each node
 	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {

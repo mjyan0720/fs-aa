@@ -90,6 +90,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	const Function *f = sn->getParent()->getFunction();
 	std::list<SEGNode*> *wkl = StmtWorkList.at(f);
 	bool changed = false;
+	dbgs() << "NEWPTS:\n"; printBDD(LocationCount,Int2Str,*newpart);
 	// if old and new are different, add all users to worklist
 	if (*oldtpts != ((*oldtpts | *newpart) & *update)) {
 		DEBUG(dbgs() << "PROPAGATE TOPLEVEL FOR: "<<*sn<<"\n");
