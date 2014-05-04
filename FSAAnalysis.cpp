@@ -26,12 +26,12 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	pointsToInit(30000000,1000000,LocationCount);
 	// build caller map
 	initializeCallerMap(&getAnalysis<CallGraph>());
-	// printValueMap();
+	DEBUG(printValueMap());
 	Int2Str = reverseMap(&Value2Int);
-	//DEBUG(printReverseMap(Int2Str));
+	DEBUG(printReverseMap(Int2Str));
 	// initialize worklists
 	initializeFuncWorkList(M);
-	// do algorithm	
+	// do algorithm
 	doAnalysis(M);
 	// done
 	dbgs()<<"Analysis Done\n";
@@ -52,10 +52,10 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 }
 
 void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Function *callee) {
- 	// add SEGNode for this call, if it exists
+	// add SEGNode for this call, if it exists
 	std::map<const Instruction*,SEGNode*>::iterator elt;
- 	elt = Inst2Node.find(callInst);
- 	if (elt != Inst2Node.end()) return;
+	elt = Inst2Node.find(callInst);
+	if (elt != Inst2Node.end()) return;
 	addCaller(elt->second,callee);
 }
 
@@ -142,7 +142,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 				continue;
 			// if return value is void, I don't care about it
 			if(isa<CallInst>(inst) && inst->getType()->isVoidTy()){
-					continue;	
+					continue;
 			}
 #ifdef ENABLE_OPT_1
 			if(sn->singleCopy()){
@@ -186,7 +186,7 @@ void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
-  // DEBUG(F->dump());
+	// DEBUG(F->dump());
 	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
 	SEG *seg = Func2SEG.find(F)->second;
 	StmtList *stmtList = new StmtList;
@@ -229,15 +229,15 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 		// add points-to pair to Top points-to set
 		TopLevelPTS = TopLevelPTS | (arg & fdd_ithvar(1,argid+1));
 		// add argument to static data
-		StaticData->push_back(arg);	
-	}	
+		StaticData->push_back(arg);
+	}
 	// set argids and static data for node
 	entry->setArgIds(ArgIds);
 	entry->setStaticData(StaticData);
 }
 
 void processGlobal(unsigned int id, bdd *tpts) {
-  *tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
+	*tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
@@ -303,12 +303,12 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 		while (!stmtList->empty()) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
-			// debugging statements	
-			// DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-			//DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
+			// debugging statements
+			DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
+			DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
 			// if this is a preserving node, just propagateAddrTaken
 			if (!sn->isnPnode()) {
-				propagateAddrTaken(sn);	
+				propagateAddrTaken(sn);
 				continue;
 			}
 #ifdef ENABLE_OPT_1
@@ -344,11 +344,11 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				case Instruction::PtrToInt:
 				// case Instruction::AddrSpaceCast:
 				// end of convert instructions
-				case Instruction::BitCast: 
+				case Instruction::BitCast:
 #ifdef ENABLE_OPT_1
 					propagateAddrTaken(sn);
 #else
-					processCopy(&TopLevelPTS,sn);	
+					processCopy(&TopLevelPTS,sn);
 #endif
 					break;
 				default: assert(false && "Out of bounds Instr Type");
@@ -359,8 +359,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
-  //DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-  // DEBUG(std::cout<<std::endl);
+	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
+	DEBUG(std::cout<<std::endl);
 }
 
 

@@ -51,13 +51,13 @@ void printMapping(map<unsigned int,string*> *lt, int i, int j) {
 	s1 = lt != NULL && lt->count(i) > 0 ? lt->at(i) : NULL;
 	s2 = lt != NULL && lt->count(j) > 0 ? lt->at(j) : NULL;
 	// print out first elt
-	if (s1 != NULL) DEBUG(llvm::dbgs() << *s1 << " -> ");
-	else if (lt != NULL) DEBUG(llvm::dbgs() << "NOT FOUND: " << i << " -> ");
-	else DEBUG(llvm::dbgs() << i << " -> ");
+	if (s1 != NULL) llvm::dbgs() << *s1 << " -> ";
+	else if (lt != NULL) llvm::dbgs() << "NOT FOUND: " << i << " -> ";
+	else llvm::dbgs() << i << " -> ";
 	// print out second elt
-	if (s2 != NULL) DEBUG(llvm::dbgs() << *s2 << "\n");
-	else if (lt != NULL) DEBUG(llvm::dbgs() << "NOT FOUND: " << j << "\n");
-	else DEBUG(llvm::dbgs() << j << "\n");
+	if (s2 != NULL) llvm::dbgs() << *s2 << "\n";
+	else if (lt != NULL) llvm::dbgs() << "NOT FOUND: " << j << "\n";
+	else llvm::dbgs() << j << "\n";
 }
 
 // print out a whole BDD; note that this will be very slow for large BDDs
@@ -80,7 +80,7 @@ void printBDD(unsigned int max, map<unsigned int,string*> *lt, bdd b) {
 		}
 	}
 	// if set is is empty, print empty
-	if (empty) DEBUG(llvm::dbgs() << "EMPTY\n");
+	if (empty) llvm::dbgs() << "EMPTY\n";
 }
 
 void printBDD(unsigned int max, bdd b) { printBDD(max,NULL,b); }

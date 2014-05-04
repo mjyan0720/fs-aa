@@ -14,7 +14,7 @@ Ifelse:
 end:
 	store i32* @C, i32** %A1
 	%A2 = load i32** %A1
-        ret i32 0
+	ret i32 0
 }
 
 ;Expected Output

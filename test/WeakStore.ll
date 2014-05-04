@@ -16,7 +16,7 @@ end:
 	%A3 = phi i32** [%A1, %Ifthen], [%A2, %Ifelse]
 	store i32* @C, i32** %A3
 	%A4 = load i32** %A3
-        ret i32 0
+	ret i32 0
 }
 
 ;Expected Output

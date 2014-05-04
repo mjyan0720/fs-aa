@@ -43,7 +43,7 @@
  *    12) sitofp ty1 val to ty2        - converts signed ty1 to fp ty2
  *    13) addrspacecast ty1 val to ty2 - converts ptr ty1 to ptr ty2 in different addressspace
  * What do we handle? How do we handle undefined values?
- * 
+ *
  * Simple boolean:
  *    alloca should never be undefined
  *    copy arguments may be undefined, if so, ret aliases everything
@@ -105,7 +105,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 	if (*update != bdd_true()) {
 		DEBUG(dbgs() << "STRONG UPDATE:\n");
 		// DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
-	}	
+	}
 	// return true if the worklist was changed
 	return changed;
 }
@@ -119,7 +119,7 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 	// add all changed successors to the worklist
 	for(SEGNode::const_succ_iterator i = sn->succ_begin(); i != sn->succ_end(); ++i) {
 		SEGNode *succ = *i;
-		// get old and new in sets 
+		// get old and new in sets
 		oldink = succ->getInSet();
 		newink = oldink | sn->getOutSet();
 		// append to worklist if inset changed and not already in worklist
@@ -141,7 +141,7 @@ int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	// store argument ids
-	ArgIds->push_back(sn->getId()+1); 
+	ArgIds->push_back(sn->getId()+1);
 	sn->setArgIds(ArgIds);
 	// store static bdd data
 	StaticData->push_back(fdd_ithvar(0,sn->getId()) & fdd_ithvar(1,ArgIds->at(0)));
@@ -180,7 +180,7 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 	// otherwise, store constant (x points everywhere)
 	} else StaticData->push_back(fdd_ithvar(0,sn->getId()));
 	// assign data
-	sn->setStaticData(StaticData); 
+	sn->setStaticData(StaticData);
 	return 0;
 }
 
@@ -189,6 +189,7 @@ int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	const Value *v = ld->getPointerOperand();
+	dbgs() << "LOAD FROM: " << v->getName() << "\n";
 	// check if argument is defined
 	sn->setDefined(Value2Int.count(v) != 0);
 	// store static argument id, or zero if it is out-of-range
@@ -196,6 +197,7 @@ int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn) {
 	sn->setArgIds(ArgIds);
 	// store static bdd data
 	if (sn->getDefined()) {
+		dbgs() << "DEFINED LOAD: " << Value2Int.at(v) << "\n";
 		// defined var name
 		StaticData->push_back(fdd_ithvar(0,sn->getId()));
 		// value we are loading from name
@@ -203,7 +205,10 @@ int FlowSensitiveAliasAnalysis::preprocessLoad(SEGNode *sn) {
 		// variables we are quantifying over
 		StaticData->push_back(fdd_ithset(0));
 	// if load argument is out-of-range, it can point anywhere
-	} else StaticData->push_back(fdd_ithvar(0,sn->getId()));
+	} else {
+		dbgs() << "UNDEFINED LOAD\n";
+		StaticData->push_back(fdd_ithvar(0,sn->getId()));
+	}
 	sn->setStaticData(StaticData);
 	// check validity of these guys? VALIDIDX2(x,y);
 	return 0;
@@ -221,7 +226,7 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	pd = Value2Int.count(p) != 0;
 	vd = Value2Int.count(v) != 0;
 	sn->setDefined(pd & vd);
-	
+
 	// DEBUG(sn->dump());
 	// DEBUG(dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n");
 	// store ids for argument values, or 0 for undefined
@@ -231,7 +236,7 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	// store bdds for corresponding values, or everything for undefined
 	StaticData->push_back(pd ? fdd_ithvar(0,ArgIds->at(0)) : bdd_true());
 	StaticData->push_back(vd ? fdd_ithvar(0,ArgIds->at(1)) : bdd_true());
-	sn->setStaticData(StaticData); 
+	sn->setStaticData(StaticData);
 	return 0;
 }
 
@@ -352,13 +357,13 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	// check whether an instruction is a call or invoke
 	if (isa<CallInst>(sn->getInstruction())) {
 		ci = cast<CallInst>(sn->getInstruction());
-		funv = ci->getCalledValue();	
+		funv = ci->getCalledValue();
 		fun = ci->getCalledFunction();
 		argnum = ci->getNumArgOperands();
 	} else {
 		isCall = false;
 		ii = cast<InvokeInst>(sn->getInstruction());
-		funv = ii->getCalledValue();	
+		funv = ii->getCalledValue();
 		fun = ii->getCalledFunction();
 		argnum = ii->getNumArgOperands();
 	}
@@ -380,7 +385,7 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	for (unsigned int i = 0; i < argnum; i++) {
 		// if argument out-of-range, store id 0
 		arg = isCall ? ci->getArgOperand(i) : ii->getArgOperand(i);
-		if (Value2Int.count(arg) != 0) id = Value2Int.at(arg); 
+		if (Value2Int.count(arg) != 0) id = Value2Int.at(arg);
 		else { id = 0; sn->setDefined(false); }
 		VALIDIDX1(id);
 		ArgIds->push_back(id);
@@ -496,7 +501,7 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	// declare some variables we need
 	std::vector<const Function*>::iterator target;
 	std::vector<const Function*> *targets;
-	CallData *cd;	
+	CallData *cd;
 	bdd filter;
 	// setup some data we need
 	// filter = genFilterSet(sn->getInSet(),globalValueNames,cd->argset);
@@ -536,7 +541,7 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 	// store bdd for returned value
 	if (Value2Int.count(ret)) {
 		sn->getArgIds()->push_back(Value2Int.at(ret));
-		sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));	
+		sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));
 	} else {
 		sn->getArgIds()->push_back(0);
 		sn->getStaticData()->push_back(bdd_true());
@@ -571,7 +576,7 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		// append my outset to caller's outset
 		// DEBUG(printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		callInst->setOutSet(callInst->getOutSet() | sn->getOutSet());
-		// propagate addr taken and record if worklist changed	
+		// propagate addr taken and record if worklist changed
 		changed = propagateAddrTaken(callInst) || changed;
 		// if callsite stores a value, propagate on top level
 		if (rd->callStatus != NO_SAVE) {
