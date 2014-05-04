@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-//#define DEBUG_TYPE "flowsensitive-aa"
+#define DEBUG_TYPE "flowsensitive-aa"
 #include "SEG.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/LeakDetector.h"
@@ -136,7 +136,8 @@ void SEG::initialize() {
                         } else if(const CastInst *inst = dyn_cast<CastInst>(I)){
                                 from = inst->getOperand(0);
                         }
-*/			from = I->getOperand(0);
+*/			const Value* fromTmp = I->getOperand(0);
+			from = fromTmp;
 			assert(from!=NULL && "not support for all singleCopy instruction type");
                         // possiblly use Argument at right hand side
                         while(isa<Argument>(from) || isa<GlobalValue>(from) || isa<ConstantExpr>(from)){
@@ -144,12 +145,32 @@ void SEG::initialize() {
                                         header->setSource(from);
                                         break;
                                 }
-                                const ConstantExpr *cexpr = dyn_cast<ConstantExpr>(from);
+				DEBUG(from->dump());
+	        	        const ConstantExpr *cexpr = dyn_cast<ConstantExpr>(from);
+				if(cexpr==NULL || (cexpr->getOpcode()!=Instruction::GetElementPtr && !cexpr->isCast())){
+					if(sn==header)
+						header->unsetSingleCopy();
+					else
+						header->setSource(fromTmp);
+					break;
+				}
                                 from = cexpr->getOperand(0);
                         }
-                        if(header->getSource()!=NULL)
+       			if(!isa<Instruction>(from)){
+				if(sn==header)
+						header->unsetSingleCopy();
+					else
+						header->setSource(fromTmp);
+					break;
+
+			}
+	                 if(header->getSource()!=NULL || !header->singleCopy())
                                break;
-                        SEGNode *fromSn = inst2sn[cast<Instruction>(from)];
+
+			assert( isa<Instruction>(from)!=false && "from should be an instruction");
+
+                        SEGNode *fromSn = inst2sn[dyn_cast<Instruction>(from)];
+
                         if(fromSn->isnPnode()==false && sn != header){
                                 header->setSource(sn->getInstruction());
 			} else if(fromSn->isnPnode()==false && sn == header ) {
