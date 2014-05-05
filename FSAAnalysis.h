@@ -218,6 +218,10 @@ public:
 	void preprocessGlobal(unsigned int id, bdd *tpts);
 	void processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g);
 	void initializeGlobals(Module &M);
+
+	// Process undef values
+	int preprocessUndef(llvm::SEGNode *sn);
+	int processUndef(bdd *tpts, llvm::SEGNode *sn);
 };
 
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);

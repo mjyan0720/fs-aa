@@ -55,14 +55,20 @@ void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Fu
 	// add SEGNode for this call, if it exists
 	std::map<const Instruction*,SEGNode*>::iterator elt;
 	elt = Inst2Node.find(callInst);
-	if (elt != Inst2Node.end()) return;
+	if (elt != Inst2Node.end()) {
+		dbgs() << "ADD CALLER: " << *callInst << " NOT FOUND\n";
+		return;
+	}
 	addCaller(elt->second,callee);
 }
 
 void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *callee) {
 	const Function *caller = callInst->getParent()->getFunction();
 	// if callee is NULL, this is an indirect call; we will add it later
-	if (callee == NULL) return;
+	if (callee == NULL) {
+		dbgs() << "ADD CALLER: NULL CALLEE\n";
+		return;
+	}
 	// add callee to map if it is not present
 	if (Func2Calls.count(callee) == 0) {
 		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
@@ -70,6 +76,7 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 	// add callInst to callee's internal map, insert RetData for this call
 	//DEBUG(dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n");
 	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
+	dbgs() << "CALLER ADDED\n";
 }
 
 // build caller map used in return processing
@@ -84,7 +91,10 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			// extract the call instruction and callee function
 			// TODO: what do NULL instructions mean; handle this later
 			Value *v = nit->first;
-			if (v == NULL) continue;
+			if (v == NULL) {
+				dbgs() << "ADD CALLER: SKIPPING NULL CALLER\n";
+				continue;
+			}
 			assert(isa<CallInst>(v) || isa<InvokeInst>(v));
 			Instruction *i = cast<Instruction>(v);
 			const Function *callee = nit->second->getFunction();

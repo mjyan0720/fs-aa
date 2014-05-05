@@ -287,6 +287,8 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		// get PTop(y)
 		topy = out2in(bdd_restrict(*tpts,bddy));
 		// get PK(PTop(y))
+		dbgs() << "LOAD INSET:\n";
+		printBDD(LocationCount,Int2Str,sn->getInSet());
 		ky   = bdd_relprod(sn->getInSet(),topy,qt);
 		newpts = bddx & ky;
 	// else, x points everywhere
@@ -371,13 +373,16 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	unsigned int id;
 	// check if this function is a pointer and if it is defined
 	cd->isPtr = (fun == NULL);
-	cd->isDefinedFunc = Value2Int.count(funv) != 0;
+	dbgs() << "CALL INST: " << *funv << "\n";
+	cd->isDefinedFunc = fun != NULL && Value2Int.count(funv) != 0;
 	// if function called is defined, store it's name
 	if (cd->isDefinedFunc) {
+		dbgs() << "PREPROCESS DEFINED\n";
 		cd->funcId = Value2Int.at(funv);
 		cd->funcName = fdd_ithvar(0,cd->funcId);
 	// otherwise, store every possible function it could point to
 	} else {
+		dbgs() << "PREPROCESS UNDEFINED\n";
 		cd->funcId = 0;
 		cd->funcName = matchingFunctions(funv);
 		sn->setDefined(false);
@@ -421,17 +426,24 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 	std::map<unsigned int,const Function *>::iterator fmit;
 	bdd fpts;
 	// if function is defined and doesn't point everywhere, compute it's points-to set
-	if (funId && !pointsTo(*tpts,funId,0)) fpts = bdd_restrict(*tpts,funName);
+	if (funId && !pointsTo(*tpts,funId,0)) {
+		dbgs() << "FUN IS DEFINED!\n";
+		fpts = bdd_restrict(*tpts,funName);
+	}
 	// otherwise, it can point everywhere
-	else fpts = *tpts;
+	else {
+		dbgs() << "FUN IS UNDEFINED!\n";
+		fpts = *tpts;
+	}
 	// find which functions pointer points-to and types agree, add to targets
+	dbgs() << "FPTS\n"; printBDD(LocationCount,Int2Str,fpts);
 	for (fmit = Int2Func.begin(); fmit != Int2Func.end(); ++fmit) {
 		// get potential target information
 		int targetId = fmit->first;
 		bdd targetName = fdd_ithvar(1,targetId);
 		const Function* target = fmit->second;
 		const Type *targetType = target->getFunctionType();
-		DEBUG(dbgs() << "CHECK FUNTYPE: "; funType->dump(); dbgs() << " TARGET: " << target->getName() << " : "; targetType->dump(); dbgs() << "\n");
+		dbgs() << "CHECK FUNTYPE: "; funType->dump(); dbgs() << " TARGET: " << target->getName() << " : "; targetType->dump(); dbgs() << "\n";
 		// check if function pointer points to target
 		if (bdd_sat(fpts & targetName)) {
 			// if so, check if their types match
@@ -440,13 +452,15 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 				// add target function to targest list
 				targets->push_back(target);
 				// add target function to caller map with this node as it's caller
+				dbgs() << "ATTEMPTING TO ADD CALLER\n";
 				addCaller(funNode,target);
 			// otherwise, fail (may change this later)
-			}
+			} else
+				dbgs() << "TARGET TYPE MISMATCH\n";
 			// NOTE: if this would be a bad call, C semantics is undefined and we don't care
 			// else assert(false && "Types should agree");
 		// pointer does NOT point to target
-		} else DEBUG(dbgs() << "NOT IN POINTS-TO SET\n");
+		} else dbgs() << "NOT IN POINTS-TO SET\n";
 	}
 	return targets;
 }
@@ -565,7 +579,10 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		retpts = sn->getStaticData()->at(0);
 	}
 	// return if we have no calls
-	if (!Func2Calls.count(sn->getParent()->getFunction())) return 0;
+	if (!Func2Calls.count(sn->getParent()->getFunction())) {
+		dbgs() << "RET NO CALLS!\n";
+		return 0;
+	}
 	// get call site list and iterate through it
 	Calls = &Func2Calls.at(sn->getParent()->getFunction())->Calls;
 	for (cit = Calls->begin(); cit != Calls->end(); ++cit) {
@@ -588,5 +605,26 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 		// if caller's worklist changed, reinsert caller in worklist
 		if (changed) appendIfAbsent<const Function*>(&FuncWorkList,caller);
 	}
+	return 0;
+}
+
+int FlowSensitiveAliasAnalysis::preprocessUndef(SEGNode *sn) {
+	sn->setArgIds(new std::vector<unsigned int>());
+	sn->setStaticData(new std::vector<bdd>());
+	// add id for this value
+	sn->getArgIds()->push_back(Value2Int.at(sn->getInstruction()));
+	// add id -> everywhere
+	sn->getStaticData()->push_back(fdd_ithvar(0,sn->getArgIds()->at(0)));
+	return 0;
+}
+
+int FlowSensitiveAliasAnalysis::processUndef(bdd *tpts, SEGNode *sn) {
+	// move in to out
+	sn->setOutSet(sn->getInSet());
+	// add id -> everywhere to tpts and propagate
+	bdd newpts = sn->getStaticData()->at(0);
+	propagateTopLevel(tpts,&newpts,sn);
+	// propagate address taken info
+	propagateAddrTaken(sn);
 	return 0;
 }
