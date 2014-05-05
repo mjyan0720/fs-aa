@@ -214,8 +214,10 @@ public:
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd *update, llvm::SEGNode *sn);
 	bool propagateAddrTaken(llvm::SEGNode *sn);
 
-	// Other processing functions
+	// Process global variables
+	void preprocessGlobal(unsigned int id, bdd *tpts);
 	void processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g);
+	void initializeGlobals(Module &M);
 };
 
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);

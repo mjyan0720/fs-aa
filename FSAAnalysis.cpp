@@ -236,7 +236,7 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	entry->setStaticData(StaticData);
 }
 
-void preprocessGlobal(unsigned int id, bdd *tpts) {
+void FlowSensitiveAliasAnalysis::preprocessGlobal(unsigned int id, bdd *tpts) {
 	*tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
@@ -277,10 +277,10 @@ void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Globa
 		bdd_not(fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
-void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	// preprocess all global variables
 	globalValueNames = bdd_false();
-	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
+	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
@@ -289,11 +289,26 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
 	// process all global variables with constant expressions
-	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
+	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
 		processGlobal(Value2Int.at(&*mi),&TopLevelPTS,&*mi);
-	// TODO: does single copy need preprocessing???
+	// propagate global pts to each function's entry node
+	bdd GlobalPTS = TopLevelPTS & globalValueNames;
+	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+		// get SEG entry node
+		SEGNode *entry = mi->second->getEntryNode();
+		// setup entry node inset and outset
+		entry->setInSet(GlobalPTS);
+		entry->setOutSet(GlobalPTS);
+		// propagate global data
+		propagateAddrTaken(entry);
+	}
+}
+
+void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+	// intialize points-to sets for globals, propagate to each function's entry node
+	initializeGlobals(M);
 	// iterate through each function and each node
-	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		preprocessFunction(mi->first);
 		SEG *seg = mi->second;
 		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
