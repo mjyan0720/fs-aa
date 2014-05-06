@@ -8,6 +8,8 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Constant.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Pass.h"
@@ -195,22 +197,31 @@ public:
 	int preprocessRet(llvm::SEGNode *sn);
 
 	// Main process functions propagate pointer information through the BDDs
-	int processAlloc(bdd *tpts, llvm::SEGNode *sn); 
-	int processCopy(bdd *tpts,  llvm::SEGNode *sn); 
-	int processLoad(bdd *tpts,  llvm::SEGNode *sn); 
-	int processStore(bdd *tpts, llvm::SEGNode *sn); 
+	int processAlloc(bdd *tpts, llvm::SEGNode *sn);
+	int processCopy(bdd *tpts,  llvm::SEGNode *sn);
+	int processLoad(bdd *tpts,  llvm::SEGNode *sn);
+	int processStore(bdd *tpts, llvm::SEGNode *sn);
 	int processCall(bdd *tpts,  llvm::SEGNode *sn);
 	int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
 	// helper functions for process call
-  std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
-  void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
-  bdd matchingFunctions(const Value *funCall);
+	std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
+	void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
+	bdd matchingFunctions(const Value *funCall);
 
 	// Propagation functions automate pushing BDD changes through the SEG and worklists
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, llvm::SEGNode *sn);
 	bool propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd *update, llvm::SEGNode *sn);
 	bool propagateAddrTaken(llvm::SEGNode *sn);
+
+	// Process global variables
+	void preprocessGlobal(unsigned int id, bdd *tpts);
+	void processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g);
+	void initializeGlobals(Module &M);
+
+	// Process undef values
+	int preprocessUndef(llvm::SEGNode *sn);
+	int processUndef(bdd *tpts, llvm::SEGNode *sn);
 };
 
 std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned int> *m);

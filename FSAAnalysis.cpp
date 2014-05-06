@@ -55,14 +55,20 @@ void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Fu
 	// add SEGNode for this call, if it exists
 	std::map<const Instruction*,SEGNode*>::iterator elt;
 	elt = Inst2Node.find(callInst);
-	if (elt != Inst2Node.end()) return;
+	if (elt != Inst2Node.end()) {
+		dbgs() << "ADD CALLER: " << *callInst << " NOT FOUND\n";
+		return;
+	}
 	addCaller(elt->second,callee);
 }
 
 void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *callee) {
 	const Function *caller = callInst->getParent()->getFunction();
 	// if callee is NULL, this is an indirect call; we will add it later
-	if (callee == NULL) return;
+	if (callee == NULL) {
+		dbgs() << "ADD CALLER: NULL CALLEE\n";
+		return;
+	}
 	// add callee to map if it is not present
 	if (Func2Calls.count(callee) == 0) {
 		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
@@ -70,6 +76,7 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 	// add callInst to callee's internal map, insert RetData for this call
 	//DEBUG(dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n");
 	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
+	dbgs() << "CALLER ADDED\n";
 }
 
 // build caller map used in return processing
@@ -84,7 +91,10 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			// extract the call instruction and callee function
 			// TODO: what do NULL instructions mean; handle this later
 			Value *v = nit->first;
-			if (v == NULL) continue;
+			if (v == NULL) {
+				dbgs() << "ADD CALLER: SKIPPING NULL CALLER\n";
+				continue;
+			}
 			assert(isa<CallInst>(v) || isa<InvokeInst>(v));
 			Instruction *i = cast<Instruction>(v);
 			const Function *callee = nit->second->getFunction();
@@ -236,24 +246,79 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	entry->setStaticData(StaticData);
 }
 
-void processGlobal(unsigned int id, bdd *tpts) {
+void FlowSensitiveAliasAnalysis::preprocessGlobal(unsigned int id, bdd *tpts) {
 	*tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
 }
 
-void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+// recurse through nested constants to find an underlying value
+const Value *unwindConstant(const Constant *c) {
+	Instruction *i;
+	// handle constant expr case
+	if (isa<ConstantExpr>(c)) {
+		i = cast<ConstantExpr>(const_cast<Constant*>(c))->getAsInstruction();
+		// if this instruction is a cast, recurse on it's first operand
+		if (i->isCast())
+			unwindConstant(cast<Constant>(i->getOperand(0)));
+		// if it is a GEP, get it's pointer
+		else if (isa<GetElementPtrInst>(i))
+			unwindConstant(cast<Constant>(cast<GetElementPtrInst>(i)->getPointerOperand()));
+	// handle function or global variable case case
+	} else if (isa<Function>(c) || isa<GlobalVariable>(c)) {
+			return c;
+	}
+	// we don't know how to handle this instruction; exit
+	return NULL;
+}
+
+// process simple constant expressions in global declarations
+void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
+	unsigned int cid;
+	const Value *v;
+	// if this global has no initializer, ignore it
+	if (!g->hasInitializer()) return;
+	// get the value from this global's constant expression
+	v = unwindConstant(g->getInitializer());
+	// if the value is not in the value map, ignore it
+	if (v == NULL || !Value2Int.count(v)) return;
+	// otherwise, update the BDD so the global points to the constant value
+	// dbgs() << "ADDING MAPPING: " << g->getName() << " -> " << v->getName() << "\n";
+	cid = Value2Int.at(v);
+	*tpts = (*tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,cid))) &
+		bdd_not(fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
+}
+
+void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	// preprocess all global variables
 	globalValueNames = bdd_false();
-	for(Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
+	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
-		processGlobal(Value2Int.at(v), &TopLevelPTS);
+		preprocessGlobal(Value2Int.at(v), &TopLevelPTS);
 		// add them to global variable pointer set
 		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
 	}
-	// TODO: does single copy need preprocessing???
+	// process all global variables with constant expressions
+	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
+		processGlobal(Value2Int.at(&*mi),&TopLevelPTS,&*mi);
+	// propagate global pts to each function's entry node
+	bdd GlobalPTS = TopLevelPTS & globalValueNames;
+	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+		// get SEG entry node
+		SEGNode *entry = mi->second->getEntryNode();
+		// setup entry node inset and outset
+		entry->setInSet(GlobalPTS);
+		entry->setOutSet(GlobalPTS);
+		// propagate global data
+		propagateAddrTaken(entry);
+	}
+}
+
+void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
+	// intialize points-to sets for globals, propagate to each function's entry node
+	initializeGlobals(M);
 	// iterate through each function and each node
-	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		preprocessFunction(mi->first);
 		SEG *seg = mi->second;
 		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
