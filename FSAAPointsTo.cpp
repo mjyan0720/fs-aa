@@ -288,6 +288,11 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		// get PK(PTop(y))
 		ky   = bdd_relprod(sn->getInSet(),topy,qt);
 		newpts = bddx & ky;
+		// if newpts is empty, then x -> everywhere
+		if (newpts == bdd_false()) {
+			dbgs() << "Empty Load: points everywhere\n";
+			newpts = bddx;
+		}
 	// else, x points everywhere
 	} else newpts = sn->getStaticData()->at(0);
 	// extend top pts
