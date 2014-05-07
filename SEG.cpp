@@ -127,63 +127,31 @@ void SEG::initialize() {
 		// if exists, break it by unset singlecopy of the header
 		// otherwise, set source for singlecopy
 		SEGNode *header = sn;
-                const Value *from = NULL;
-                while(sn->singleCopy()==true && sn->getSource()==NULL){
+                while(sn!=NULL && sn->singleCopy()==true){
                         const Instruction *I = sn->getInstruction();
-/*                     from = NULL;
-                        if(const GetElementPtrInst *inst = dyn_cast<GetElementPtrInst>(I)){
-                                from = inst->getPointerOperand();
-                        } else if(const CastInst *inst = dyn_cast<CastInst>(I)){
-                                from = inst->getOperand(0);
-                        }
-*/			const Value* fromTmp = I->getOperand(0);
-			from = fromTmp;
-			assert(from!=NULL && "not support for all singleCopy instruction type");
-                        // possiblly use Argument at right hand side
-                        while(isa<Argument>(from) || isa<GlobalValue>(from) || isa<ConstantExpr>(from)){
-                                if(isa<Argument>(from) || isa<GlobalValue>(from)){
-                                        header->setSource(from);
-                                        break;
-                                }
-				DEBUG(from->dump());
-	        	        const ConstantExpr *cexpr = dyn_cast<ConstantExpr>(from);
-				if(cexpr==NULL || (cexpr->getOpcode()!=Instruction::GetElementPtr && !cexpr->isCast())){
-					if(sn==header)
-						header->unsetSingleCopy();
-					else
-						header->setSource(fromTmp);
+			const Value* from = I->getOperand(0);
+			sn = NULL;
+                        // peal the nested instruction first
+			while(isa<ConstantExpr>(from)){
+		       	        const ConstantExpr *cexpr = dyn_cast<ConstantExpr>(from);
+				if(cexpr->getOpcode()==Instruction::GetElementPtr || cexpr->isCast()){
+					from = cexpr->getOperand(0);
+				}
+			}
+
+			if(isa<Argument>(from)||isa<GlobalValue>(from)){
+				header->setSource(from);
+				break;
+			} else if(isa<Instruction>(from)){
+				SEGNode *fromSn = inst2sn[dyn_cast<Instruction>(from)];
+				if(!fromSn->isnPnode()){
+					break;
+				} else if(!fromSn->singleCopy()){
+					header->setSource(from);
 					break;
 				}
-                                from = cexpr->getOperand(0);
-                        }
-       			if(!isa<Instruction>(from)){
-				if(sn==header)
-						header->unsetSingleCopy();
-					else
-						header->setSource(fromTmp);
-					break;
-
+				sn = fromSn;
 			}
-	                 if(header->getSource()!=NULL || !header->singleCopy())
-                               break;
-
-			assert( isa<Instruction>(from)!=false && "from should be an instruction");
-
-                        SEGNode *fromSn = inst2sn[dyn_cast<Instruction>(from)];
-
-                        if(fromSn->isnPnode()==false && sn != header){
-                                header->setSource(sn->getInstruction());
-			} else if(fromSn->isnPnode()==false && sn == header ) {
-				header->unsetSingleCopy();
-			} else if(fromSn == header){//a cycle detected, impossible to have cycle
-				header->unsetSingleCopy();
-				break;
-			} else if(fromSn->singleCopy()==false && fromSn->isnPnode()==true){
-				header->setSource(from);
-			} else if(fromSn->singleCopy()==true && fromSn->getSource()!=NULL){
-				header->setSource(fromSn->getSource());
-			}
-			sn = fromSn;
 		}
 #endif
 	}

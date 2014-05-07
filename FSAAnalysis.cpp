@@ -155,7 +155,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 					continue;
 			}
 #ifdef ENABLE_OPT_1
-			if(sn->singleCopy()){
+			if(sn->singleCopy() && !sn->undefSource()){
 				SingleCopySNs.push_back(sn);
 				//DEBUG(dbgs()<<"skip:\t"<<*sn<<"\n");
 				continue;
@@ -174,7 +174,6 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			const Value *from = sn->getSource();
 			assert( from!=NULL && "must has a source value");
 			DEBUG(from->dump());
-			DEBUG(dbgs()<<from->getValueID());
 			std::map<const Value*, unsigned>::iterator mi = Value2Int.find(from);
 			assert( mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
 			// DEBUG(dbgs()<<"assign "<<mi->second<<" to\t"<<*sn<<"\n");
@@ -207,7 +206,7 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 		// don't initialize worklist with it.
 		// assign singleCopy same id as its source, already processed
 #ifdef ENABLE_OPT_1
-		if(isa<ReturnInst>(inst) | isa<CastInst>(inst))
+		if(isa<ReturnInst>(inst) | (sn->singleCopy() && !sn->undefSource()))
 #else
 		if(isa<ReturnInst>(inst))
 #endif
@@ -344,6 +343,11 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 #ifndef ENABLE_OPT_1
 				// treat as copy
 				preprocessCopy(sn);
+#else
+				if(sn->undefSource()){
+					DEBUG(dbgs()<<"preprocessing undef source single copy"<<*sn<<"\n");
+					preprocessUndef(sn);
+				}
 #endif
 			} else if (!sn->isnPnode()) {
 				// do nothing
@@ -378,8 +382,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			}
 #ifdef ENABLE_OPT_1
 			// if this a copy of a node, ignore it
-			if(sn->singleCopy())
+			if(sn->singleCopy() && sn->undefSource()){
+				processUndef(&TopLevelPTS, sn);
 				continue;
+			}
 #endif
 			// otherwise, do standard processing
 			switch(sn->getInstruction()->getOpcode()) {

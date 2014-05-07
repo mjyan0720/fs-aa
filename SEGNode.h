@@ -48,6 +48,7 @@ private:
 	/// SingleCopy - Indicate whether this instruction is a copy instruction
 	/// and the right hand side only contains one variable
 	bool SingleCopy;
+	bool UndefSource;
 
 	/// Source - when this node is a singlecopy, indicate the source of
 	/// copy comes from. It maybe a chain, source is the header of it.
@@ -99,6 +100,7 @@ public:
 #ifdef ENABLE_OPT_1
 		SingleCopy=false;
 		Source=NULL;
+		UndefSource=true;
 #endif
 	}
 
@@ -116,9 +118,9 @@ public:
 	bool	addrTaken() {	return AddrTaken;	}
 #ifdef ENABLE_OPT_1
 	bool singleCopy() {	return SingleCopy;	}
-	void unsetSingleCopy()	{	SingleCopy=false;	}
+	bool undefSource() {	return UndefSource;	}
 	const Value *getSource()	{	return Source;	}
-	void setSource(const Value* v)	{	Source = v;	}
+	void setSource(const Value* v)	{	Source = v;	UndefSource=false;	}
 #endif
 	SEG *getParent() { return Parent; }
 

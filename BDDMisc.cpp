@@ -1,6 +1,7 @@
 #include "bdd.h"
 #include "fdd.h"
 #include "llvm/Support/Debug.h"
+#include "SEGNode.h"
 #include <map>
 #include <cassert>
 

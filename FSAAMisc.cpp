@@ -6,7 +6,6 @@
 #define insertName(m,r,f,s)                                             \
   do {                                                                  \
     ((r) = (m)->insert(std::pair<unsigned int,std::string*>((f),(s)))); \
-    assert((r).second);                                                 \
   } while(0)
 #define ss(s) std::string(s)
 
@@ -34,14 +33,14 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(prename));
 		else 
 			name = new ss(prename);
-#ifdef ENABLE_OPT_1
+/*#ifdef ENABLE_OPT_1
 		// in the opt1 version, they are not assigned an id, they share the id with
 		// source value used at right hand side
 		// insert will fail.
 		if (isa<GetElementPtrInst>(v) | isa<CastInst>(v))
 			continue;
 #endif	
-		DEBUG(v->dump());
+*/		DEBUG(v->dump());
 		// add hidden names for each value type that has hidden values
 		if (isa<AllocaInst>(v)) { 
 			insertName(inv,ret,id,name);

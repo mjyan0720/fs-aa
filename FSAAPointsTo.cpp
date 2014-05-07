@@ -291,9 +291,14 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		printBDD(LocationCount,Int2Str,sn->getInSet());
 		ky   = bdd_relprod(sn->getInSet(),topy,qt);
 		newpts = bddx & ky;
-		// if newpts is empty, then x -> everywhere
-		if (newpts == bdd_false()) {
-			DEBUG(dbgs() << "Empty Load: points everywhere\n");
+		// if newpts is empty, it means we are loading from an uninitialized value: then x -> everywhere
+		// if topy -> everywhere, then load result x should point to everywhere
+//		if (newpts == bdd_false()) {
+//			DEBUG(dbgs() << "Load uninitialized\n");
+//			newpts = bddx;
+//		}
+		if (bdd_sat(topy & fdd_ithvar(0,0))) {
+			DEBUG(dbgs() << "Top(y) points everywhere\n");
 			newpts = bddx;
 		}
 	// else, x points everywhere
