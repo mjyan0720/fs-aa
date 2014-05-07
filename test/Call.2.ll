@@ -1,4 +1,6 @@
-;test case for call function changes addr-taken information
+;Goal of this test:
+;test case when call function changes addr-taken information
+; the modified information should be able to propagate to return call site
 
 @A = global i32 10
 @B = global i32 11

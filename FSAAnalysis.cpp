@@ -304,6 +304,8 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	bdd GlobalPTS = TopLevelPTS & globalValueNames;
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		// get SEG entry node
+		if(mi->second->isDeclaration())
+			continue;
 		SEGNode *entry = mi->second->getEntryNode();
 		// setup entry node inset and outset
 		entry->setInSet(GlobalPTS);
