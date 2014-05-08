@@ -55,7 +55,7 @@ void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Fu
 	// add SEGNode for this call, if it exists
 	std::map<const Instruction*,SEGNode*>::iterator elt;
 	elt = Inst2Node.find(callInst);
-	if (elt != Inst2Node.end()) {
+	if (elt == Inst2Node.end()) {
 		DEBUG(dbgs() << "ADD CALLER: " << *callInst << " NOT FOUND\n");
 		return;
 	}
@@ -218,9 +218,8 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 
 void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	SEG* seg = Func2SEG.at(f);
-
-	if(seg->isDeclaration())
-		return;
+	// don't need to preprocess declarations
+	if (seg->isDeclaration()) return;
 	SEGNode *entry = seg->getEntryNode();
 	std::vector<bdd> *StaticData = new std::vector<bdd>();
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
@@ -304,8 +303,7 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	bdd GlobalPTS = TopLevelPTS & globalValueNames;
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		// get SEG entry node
-		if(mi->second->isDeclaration())
-			continue;
+		if (mi->second->isDeclaration()) continue;
 		SEGNode *entry = mi->second->getEntryNode();
 		// setup entry node inset and outset
 		entry->setInSet(GlobalPTS);
@@ -315,12 +313,28 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	}
 }
 
+// NOTE: only use this function after the regular analysis
+// make loads that point nowhere, point everywhere
+void FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
+	// get loads that point no-where
+	bdd initializedLoads = bdd_exist(TopLevelPTS & loadNames,fdd_ithset(1));
+	bdd uninitializedLoads = bdd_not(initializedLoads) & loadNames;
+	// print debugging information
+	DEBUG(dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads););
+	// make uninitialized loads point everywhere
+	TopLevelPTS |= uninitializedLoads & fdd_ithvar(1,0);
+}
+
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	// intialize points-to sets for globals, propagate to each function's entry node
 	initializeGlobals(M);
 	// iterate through each function and each node
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+		// preprocess functions
 		preprocessFunction(mi->first);
+		// add function names to constants list
+		constantNames |= fdd_ithvar(0,Value2Int.at(mi->first));
+		// preprocess every node in SEG
 		SEG *seg = mi->second;
 		for(SEG::iterator sni=seg->begin(), sne=seg->end(); sni!=sne; ++sni) {
 			SEGNode *sn = &*sni;
@@ -334,6 +348,8 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			} else if (isa<PHINode>(i)) {
 				preprocessCopy(sn);
 			} else if (isa<LoadInst>(i)) {
+				// add this load's name to loadNames
+				loadNames |= fdd_ithvar(0,Value2Int.at(sn->getInstruction()));
 				preprocessLoad(sn);
 			} else if (isa<StoreInst>(i)) {
 				preprocessStore(sn);
@@ -361,11 +377,10 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 }
 
 void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
-
+	int ret = 0;
 	// setup analysis
 	TopLevelPTS = bdd_false();
 	setupAnalysis(M);
-
 	// iterate through each function and each worklist
 	while(!FuncWorkList.empty()){
 		const Function *f = FuncWorkList.front();
@@ -391,13 +406,13 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 #endif
 			// otherwise, do standard processing
 			switch(sn->getInstruction()->getOpcode()) {
-				case Instruction::Alloca:	processAlloc(&TopLevelPTS,sn); break;
-				case Instruction::PHI:		processCopy(&TopLevelPTS,sn);  break;
-				case Instruction::Load:		processLoad(&TopLevelPTS,sn);  break;
-				case Instruction::Store:	processStore(&TopLevelPTS,sn); break;
+				case Instruction::Alloca: ret = processAlloc(&TopLevelPTS,sn); break;
+				case Instruction::PHI:	  ret = processCopy(&TopLevelPTS,sn);  break;
+				case Instruction::Load:	  ret = processLoad(&TopLevelPTS,sn);  break;
+				case Instruction::Store:  ret = processStore(&TopLevelPTS,sn); break;
 				case Instruction::Invoke:
-				case Instruction::Call:   processCall(&TopLevelPTS,sn);  break;
-				case Instruction::Ret:    processRet(&TopLevelPTS,sn);   break;
+				case Instruction::Call:   ret = processCall(&TopLevelPTS,sn);  break;
+				case Instruction::Ret:    ret = processRet(&TopLevelPTS,sn);   break;
 				//if it's self-copy instruction, don't need process instruction itself;
 				//propagateAddrTaken if has successors
 				//only has one definition, so it won't be merge point for top, don't need
@@ -421,21 +436,27 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 #ifdef ENABLE_OPT_1
 					propagateAddrTaken(sn);
 #else
-					processCopy(&TopLevelPTS,sn);
+					ret = processCopy(&TopLevelPTS,sn);
 #endif
 					break;
 				default: assert(false && "Out of bounds Instr Type");
 			}
-
+			// if ret is non-zero, stop
+			if (ret) {
+				dbgs() << "EVERYTHING ALIASES\n";
+				break;
+			}
 			// print out sets
 			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
 			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
+	// handle uninitialized loads
+	handleUninitializedLoads();
+	// print ouf final points-to set
 	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
 	DEBUG(std::cout<<std::endl);
 }
-
 
 /// Register this pass
 char FlowSensitiveAliasAnalysis::ID = 0;

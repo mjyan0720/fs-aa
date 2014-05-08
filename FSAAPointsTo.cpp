@@ -312,7 +312,7 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 }
 
 int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
-	bdd bddx, bddy, topx, topy, outkpts;
+	bdd bddx, bddy, topx, topy, outkpts, oldtpts;
 	// lookup where x points, get PTop(x)
 	if (sn->getArgIds()->at(0)) {
 		bddx = sn->getStaticData()->at(0);
@@ -323,16 +323,38 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 		bddy = sn->getStaticData()->at(1);
 		topy = bdd_restrict(*tpts,bddy);
 	} else topy = sn->getStaticData()->at(1);
-	// if x points uniquely, then strong update
-	if (sn->getArgIds()->at(0) && bdd_satcount(bddx & *tpts) == 1.0)
-	// TODO: I need to force it to not uniquely point to 0
-	// if (sn->getArgIds()->at(0) && bdd_satcount(bddx & bdd_not(fdd_ithvar(0,0)) &  *tpts) == 1.0)
+	// if storing to unique memory location, strong update
+	if (sn->getArgIds()->at(0) && bdd_satcount(bddx & *tpts & bdd_not(fdd_ithvar(1,0))) == 1.0)
 		outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
 	// else weak update
 	else outkpts = sn->getInSet();
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
 	propagateAddrTaken(sn);
+	// if we are storing everywhere
+	if (bdd_sat(fdd_ithvar(0,0) & topx)) {
+		// return 1 if we are storing everything, everywhere
+		if (bdd_sat(fdd_ithvar(1,0) & topy)) return 1;
+#ifdef ENABLE_UNDEFSTORE
+		// update toplevel
+		bool changed;
+		oldtpts = *tpts;
+		*tpts = *tpts | topy;
+		changed = oldtpts != *tpts;
+		// for each function, propagate
+		for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+			// get SEG entry node
+			if (mi->second->isDeclaration()) continue;
+			SEGNode *entry = mi->second->getEntryNode();
+			// update every entry node's outset
+			entry->setInSet(entry->getIntSet() | topy);
+			entry->setOutSet(entry->getInSet());
+			// propagate addr taken and toplevel
+			if (!propagateAddrTaken(entry) || changed)
+				appendIfAbsent<SEGNode*>(StmtWorklist->at(mi->first),*i);
+		}
+#endif
+	}
 	return 0;
 }
 
