@@ -1,3 +1,5 @@
+; naive test for call and return
+
 @A = global i32 10
 
 define i32 @start() {

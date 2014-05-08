@@ -1,3 +1,8 @@
+; goal of test
+; test whether optimization_1 works
+; opt_1 assign all singlecopy the same id as its source
+
+
 @A = global i32 7
 
 define void @main() {

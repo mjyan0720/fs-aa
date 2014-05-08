@@ -1,3 +1,5 @@
+; Goal of this test
+; test copy works for loop iteration
 
 define i32 @test2() {
 entry:

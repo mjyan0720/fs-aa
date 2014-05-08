@@ -1,3 +1,7 @@
+; goal of test
+; test store undefined data to a specified position
+; make the stored place point to everywhere 
+
 @A = global i32 7
 
 define void @main() {
@@ -10,12 +14,6 @@ define void @main() {
 
 ;Expected Output
 ;A -> A_VALUE
-;B -> B_VALUE
-;C -> C_VALUE
 ;A1 -> A1_HEAP
-;A2 -> A2_HEAP
-;A3 -> A1_HEAP
-;A3 -> A2_HEAP
-;A4 -> A_VALUE
-;A4 -> B_VALUE
-;A4 -> C_VALUE
+;A2 -> EVERYTHING
+;A3 -> EVERYTHING

@@ -1,7 +1,11 @@
+; goal of test
+; test call a undefined function pointer
+; under such circumstance, check all functions we have
+
 @A = global i32 1
 @B = global i32 2
 @C = global i32 3
-@D = global i32* @A  ; these initializer expresssions are currently not handled
+@D = global i32* @A
 @E = global i32* @B
 @F = global i32* @C
 
@@ -27,3 +31,7 @@ define i32* @call3() {
 	%ret = load i32** @F
 	ret i32* %ret
 }
+
+
+;Expected result
+; 

@@ -1,3 +1,8 @@
+; goal of test
+; test for strong update for store
+; check how many places the pointer points to, if it only points to one place
+; do a strong update
+
 @A = global i32 7
 @B = global i32 8
 @C = global i32 9

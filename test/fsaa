@@ -1,0 +1,73 @@
+#!/bin/bash
+
+LLVM_SRC_ROOT="/home/hattie/llvm/llvm"
+LLVM_BIN="$LLVM_SRC_ROOT/Debug+Asserts/bin"
+LLVM_LIB="$LLVM_SRC_ROOT/Debug+Asserts/lib"
+FSAA_LIB="-load=$LLVM_LIB/FlowSensitiveAliasAnalysis.so"
+OPT="$LLVM_BIN/opt"
+VERBOSE=""
+DEBUG=""
+OUTPUT=""
+SILENT=""
+VERBOSE=""
+
+print_usage () {
+  echo "Usage: fsaa [-d] [-v] [-s] [-o outputfile] [other opt arguments] input-file"
+  echo "	-d : run fsaa in GDB"
+  echo "	-v : enable debugging output for fsaa"
+  echo "	-s : suppress all output to terminal"
+  echo "	-o : write llvm IR to file outputfile"
+}
+
+# check if we dump debugging information
+while getopts ":dvo:sh" opt; do
+  case $opt in
+    d)
+      DEBUG="true"
+      ;;
+    v)
+      VERBOSE="-debug"
+      ;;
+    o)
+      OUTPUT="-S -o $OPTARG"
+      ;;
+    s)
+      SILENT="true"
+      ;;
+    h)
+      print_usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+# shift arguments down
+shift $((OPTIND-1))
+
+# do nothing if we have no arguments
+if [ -z "$@" ]; then
+  print_usage
+  exit 1
+fi
+
+# setup command
+ARGS="$OUTPUT $VERBOSE"
+
+# call program
+if [ -z "$DEBUG" ]; then
+  if [ -z "$SILENT" ]; then
+    echo $OPT $FSAA_LIB -fs-aa $ARGS $@
+    $OPT $FSAA_LIB -fs-aa $ARGS $@
+  else
+    echo "$OPT $FSAA_LIB -fs-aa $ARGS $@ &> /dev/null"
+    $OPT $FSAA_LIB -fs-aa $ARGS $@ &> /dev/null
+  fi
+else
+  echo gdb --args "$OPT $FSAA_LIB -fs-aa $ARGS $@"
+  gdb --args $OPT $FSAA_LIB -fs-aa $ARGS $@
+fi

@@ -1,3 +1,7 @@
+; goal of test
+; test whether load works
+
+
 @A = global i32 7
 
 define i32 @test2() {
