@@ -17,9 +17,9 @@ end:
 	ret i32 0
 }
 
-;Expected Output
-;A -> A_VALUE
-;B -> B_VALUE
-;C -> C_VALUE
-;A1 -> A1_HEAP
-;A2 -> C_VALUE
+; Expected Output
+; A -> A_VALUE
+; B -> B_VALUE
+; C -> C_VALUE
+; A1 -> A1_HEAP
+; A2 -> C_VALUE
