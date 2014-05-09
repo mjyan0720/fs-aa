@@ -74,6 +74,12 @@ private:
 	/// global values name set
 	bdd globalValueNames;
 
+	/// names of load instructions (at the end, unitialized loads point to everything)
+	bdd loadNames;
+
+	/// names of constant values
+	bdd constantNames;
+
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
 		AU.addRequired<TargetLibraryInfo>();
@@ -102,7 +108,10 @@ private:
 
 	/// addCaller - invoked to add callers to caller map
 	void addCaller(const Instruction *i, const Function *f);
-	void addCaller(SEGNode *c, const Function *f);	
+	void addCaller(SEGNode *c, const Function *f);
+
+	/// handleUnitializedLoads - make these loads point everywhere
+	void handleUninitializedLoads();
 
 	/// doAnalysis - performs actual analysis algorithm
 	void doAnalysis(Module &M);
@@ -132,29 +141,52 @@ public:
 
 	AliasResult aliasCheck(unsigned int v1, unsigned int v2) {
 		assert(v1 <= LocationCount && v2 <= LocationCount);
+		// get intersection of two points-to sets
 		bdd test = bdd_restrict(TopLevelPTS,fdd_ithvar(0,v1)) & bdd_restrict(TopLevelPTS,fdd_ithvar(0,v2));
+		// if they intersect, they may alias
 		if (bdd_sat(test)) {
+			// if they both point to a single value, they must alias
 			if (bdd_satcount(test) == 1.0) return MustAlias;
 			else return MayAlias;
+		// otherwise, they don't alias
 		} else return NoAlias;
 	}
 
 	virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-	  std::map<const Value*, unsigned>::iterator ret1, ret2;
+		std::map<const Value*, unsigned>::iterator ret1, ret2;
 		const Value *v1, *v2;
 		unsigned int l1, l2;
+		const Type *t1, *t2;
+		bool p1, p2, c1, c2;
+		// get these location's values, types, indices in BDD, and if they are constants
 		v1 = LocA.Ptr;
 		v2 = LocB.Ptr;
+		t1 = v1->getType();
+		t2 = v2->getType();
+		p1 = t1->isPtrOrPtrVectorTy() || t1->isVectorTy();
+		p2 = t2->isPtrOrPtrVectorTy() || t2->isVectorTy();
 		ret1 = Value2Int.find(v1);
 		ret2 = Value2Int.find(v2);
 		l1 = ret1 == Value2Int.end() ? 0 : ret1->second;
-		l2 = ret2 == Value2Int.end() ? 0 : ret2->second;	
+		l2 = ret2 == Value2Int.end() ? 0 : ret2->second;
+		c1 = l1 ? bdd_sat(constantNames & fdd_ithvar(0,l1)) : false;
+		c2 = l2 ? bdd_sat(constantNames & fdd_ithvar(0,l2)) : false;
+		// if they are the same value, they must alias
+		if (v1 == v2) return MustAlias;
+		// if they are both constants or not pointers, they won't alias (they are different)
+		if ((c1 || !p1) && (c2 || !p2)) return NoAlias;
+		// if everything -> everything, they may alias
+		if (pointsTo(TopLevelPTS,0,0)) return MayAlias;
+		// if the two locations are not mapped, they won't alias (they are different)
 		if (l1 == 0 && l2 == 0) return NoAlias;
+		// if either value points everywhere, they may alias
 		else if (l1 != 0 && pointsTo(TopLevelPTS,l1,0)) return MayAlias;
 		else if (l2 != 0 && pointsTo(TopLevelPTS,l2,0)) return MayAlias;
-		else return aliasCheck(l1,l2);
-
-		return MayAlias;
+		// if one is a constant or pointer, check if the other points to it
+		if ((c1 || !p1) && pointsTo(TopLevelPTS,l2,l1)) return MayAlias;
+		if ((c2 || !p2) && pointsTo(TopLevelPTS,l1,l2)) return MayAlias;
+		// otherwise, check if their points-to sets overlap
+		return aliasCheck(l1,l2);
 	}
 
 	virtual ModRefBehavior getModRefBehavior(ImmutableCallSite CS) {
