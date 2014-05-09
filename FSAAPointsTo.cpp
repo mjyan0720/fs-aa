@@ -294,6 +294,8 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		// get PTop(y)
 		topy = out2in(bdd_restrict(*tpts,bddy));
 		// get PK(PTop(y))
+		DEBUG(dbgs() << "LOAD INSET:\n");
+		DEBUG(printBDD(LocationCount,Int2Str,sn->getInSet()));
 		ky   = bdd_relprod(sn->getInSet(),topy,qt);
 		newpts = bddx & ky;
 		// if newpts is empty, it means we are loading from an uninitialized value: then x -> everywhere

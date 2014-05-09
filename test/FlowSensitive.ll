@@ -1,3 +1,8 @@
+; Goal of test
+; test whether it gives flowsensitive result
+; finally A1_HEAP points to both A_VALUE and B_VALUE
+; but A_then and A_else shouldn't share its result
+
 @A = global i32 7
 @B = global i32 8
 

@@ -1,3 +1,8 @@
+; goal of test
+; it's a trivial test for whether weak update
+; for store works or not
+
+
 @A = global i32 7
 @B = global i32 8
 @C = global i32 9

@@ -1,3 +1,8 @@
+; goal of this test
+; test initialize global variables
+
+
+
 @A = global i32      99
 @B = global i32*     @A
 @C = global i32**    @B
@@ -14,3 +19,12 @@ define i32 @main() {
 	%ret = load i32*      %A
 	ret i32 %ret
 }
+
+
+; expected result
+; main_E --> D 
+; main_D --> C
+; main_C --> B
+; main_B --> A
+; main_A --> A_VALUE
+; main_ret --> EVERYTHING
