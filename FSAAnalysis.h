@@ -76,7 +76,7 @@ private:
 	bdd loadNames;
 
 	/// set of SEGNodes for load empty load instructions
-	set<SEGNode*> undefLoadNodes;
+	std::set<SEGNode*> undefLoadNodes;
 
 	/// names of constant values
 	bdd constantNames;
@@ -112,10 +112,10 @@ private:
 	void addCaller(SEGNode *c, const Function *f);
 
 	/// handleUnitializedLoads - make these loads point everywhere
-	void handleUninitializedLoads();
+	bool handleUninitializedLoads();
 
 	/// doAnalysis - performs actual analysis algorithm
-	void doAnalysis(Module &M);
+	void doAnalysis(Module &M, int round);
 
 	/// setupAnalysis - initializes analysis datastructures void setupAnalysis(Module &M);
 	void setupAnalysis(Module &M);

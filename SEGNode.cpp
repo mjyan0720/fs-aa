@@ -28,6 +28,7 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	Defined = true;
 	AddrTaken = true;
 	Extra = NULL;
+	LoadDefined = true;
 #ifdef ENABLE_OPT_1
 	SingleCopy = false;
 	Source = NULL;
@@ -37,12 +38,13 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 
 SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(parent) {
 	IsnPnode = isa<AllocaInst>(inst) | isa<PHINode>(inst)  | isa<LoadInst>(inst) |
-			isa<StoreInst>(inst)  | isa<CallInst>(inst) | isa<ReturnInst>(inst) |
-			isa<GetElementPtrInst>(inst) | isa<CastInst>(inst) | isa<InvokeInst>(inst);
+		isa<StoreInst>(inst)  | isa<CallInst>(inst) | isa<ReturnInst>(inst) |
+		isa<GetElementPtrInst>(inst) | isa<CastInst>(inst) | isa<InvokeInst>(inst);
 	Defined = true;
-	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) | 
-		    isa<ReturnInst>(inst) | isa<InvokeInst>(inst);
+	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) |
+		isa<ReturnInst>(inst) | isa<InvokeInst>(inst);
 	Extra = NULL;
+	LoadDefined = true;
 #ifdef ENABLE_OPT_1
 	SingleCopy = isa<GetElementPtrInst>(inst) | isa<CastInst>(inst);
 	Source = NULL;
