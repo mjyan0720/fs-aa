@@ -95,12 +95,17 @@ private:
 
 	/// ExtraData - field stores extradata for instructions that need it
 	ExtraData *Extra;
+
+	/// Bool to record if this is a load from an undefined value
+	bool LoadDefined;
+
 public:
 	SEGNode() {
 		Defined = true;
 		StaticData = NULL;
 		ArgIds = NULL;
 		Extra = NULL;
+		LoadDefined = true;
 #ifdef ENABLE_OPT_1
 		SingleCopy=false;
 		Source=NULL;
@@ -135,6 +140,7 @@ public:
 	bdd getOutSet()                                   { return Out;                    }
 	std::vector<bdd> *getStaticData()                 { return StaticData;             }
 	bool getDefined()                                 { return Defined;                }
+	bool getLoadDefined()                             { return LoadDefined;            }
 	ExtraData *getExtraData()                         { return Extra;                  }
 	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds;         }
 	void setId(unsigned int Id)                       { this->Id = Id;                 }
@@ -142,6 +148,7 @@ public:
 	void setOutSet(bdd Out)                           { this->Out = Out;               }
 	void setStaticData(std::vector<bdd> *StaticData)  { this->StaticData = StaticData; }
 	void setDefined(bool Defined)                     { this->Defined = Defined;       }
+	void setLoadDefined(bool Defined)                 { this->LoadDefined = Defined;   }
 	void setExtraData(ExtraData* Extra)               { this->Extra = Extra;           }
 
 	/// SEG-CFG iterators

@@ -21,6 +21,7 @@ using namespace llvm;
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-preprocess"
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
+	int rnd = 0;
 	// build SEG
 	constructSEG(M);
 	// initialize value maps
@@ -34,13 +35,23 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	DEBUG(printReverseMap(Int2Str));
 	// initialize worklists
 	initializeFuncWorkList(M);
-	// do algorithm
-	doAnalysis(M);
-	// done
+	// setup algorithm
+	TopLevelPTS = bdd_false();
+	setupAnalysis(M);
+	// do algorithm while loads are uninitialized
+	do {
+		assert(rnd < 2 && "LOADS NOT INITIALIZED");
+		doAnalysis(M,rnd++);
+	} while (handleUninitializedLoads());
+	// print ouf final points-to set
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-result"
+	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
+	DEBUG(std::cout<<std::endl);
 	dbgs()<<"Analysis Done\n";
-
+	// cleanup whatever memory we can
 	clean();
-
+	// return false
 	return false;
 }
 
@@ -300,21 +311,38 @@ const Value *unwindConstant(const Constant *c) {
 	return NULL;
 }
 
+// we consider vectors, arrays, and structs to be opaque
+bool isOpaqueType(Value *v) {
+	// while underlying type is a pointer, remove it
+	Type *t = v->getType();
+	while (isa<PointerType>(t)) t = cast<PointerType>(t)->getElementType();
+	// is the final type opaque?
+	return t->isArrayTy() || t->isStructTy() || t->isVectorTy();
+}
+
 // process simple constant expressions in global declarations
 void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
-	unsigned int cid;
 	const Value *v;
-	// if this global has no initializer, ignore it
-	if (!g->hasInitializer()) return;
-	// get the value from this global's constant expression
-	v = unwindConstant(g->getInitializer());
-	// if the value is not in the value map, ignore it
-	if (v == NULL || !Value2Int.count(v)) return;
-	// otherwise, update the BDD so the global points to the constant value
-	DEBUG(dbgs() << "GLOBAL: MAP FROM " << g->getName() << " -> " << v->getName() << "\n";);
-	cid = Value2Int.at(v);
-	*tpts = (*tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,cid))) &
-		bdd_not(fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
+	bdd newpts, killpts;
+	// setup kill pts
+	killpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
+	// if this global has no initializer and it's not opaque, ignore it
+	if (!g->hasInitializer() && !isOpaqueType(g)) return;
+	// if it's opaque, it points everywhere
+	if (isOpaqueType(g)) {
+		newpts = fdd_ithvar(0,id);
+	// else it has an initializer and it's not opaque; process initializer
+	} else {
+		v = unwindConstant(g->getInitializer());
+		// if the value is not in the value map, ignore it
+		if (v == NULL || !Value2Int.count(v)) return;
+		// debugging info
+		DEBUG(dbgs() << "GLOBAL: MAP FROM " << g->getName() << " -> " << v->getName() << "\n";);
+		// add new pts, remove kill pts
+		newpts = fdd_ithvar(0,id) & fdd_ithvar(1,Value2Int.at(v));
+	}
+	// update the tpts with the new global information
+	*tpts = (*tpts | newpts) & bdd_not(killpts);
 }
 
 void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
@@ -325,8 +353,11 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
 		preprocessGlobal(Value2Int.at(v), &TopLevelPTS);
+		bdd name = fdd_ithvar(0,Value2Int.at(v));
 		// add them to global variable pointer set
-		globalValueNames = globalValueNames | fdd_ithvar(0,Value2Int.at(v));
+		globalValueNames |= name;
+		// if they are constants, add to constant names
+		if (v->isConstant()) constantNames |= name;
 	}
 	// process all global variables with constant expressions
 	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
@@ -349,7 +380,9 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 #define DEBUG_TYPE "fsaa-toplevel"
 // NOTE: only use this function after the regular analysis
 // make loads that point nowhere, point everywhere
-void FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
+bool FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
+	std::set<SEGNode*>::iterator it, end;
+	bool changed = false;
 	// get loads that point no-where
 	bdd initializedLoads = bdd_exist(TopLevelPTS & loadNames,fdd_ithset(1));
 	bdd uninitializedLoads = bdd_not(initializedLoads) & loadNames;
@@ -357,6 +390,26 @@ void FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
 	DEBUG(dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads););
 	// make uninitialized loads point everywhere
 	TopLevelPTS |= uninitializedLoads & fdd_ithvar(1,0);
+	// add uninitloads back to the worklist
+	for (it = undefLoadNodes.begin(), end = undefLoadNodes.end(); it != end; ++it) {
+		SEGNode *sn = *it;
+		// if load not defined
+		if (!sn->getLoadDefined()) {
+			bdd newpts = fdd_ithvar(0,sn->getId());
+			// add to the number of uninitialized loads
+			UninitLoads++;
+			// spoof an undefined load (loads from everywhere)
+			sn->setDefined(false);
+			sn->setLoadDefined(true);
+			sn->getStaticData()->clear();
+			sn->getStaticData()->push_back(newpts);
+			// propagate on toplevel for this node
+			// No need to propagate addrtaken since inset hasn't changed
+			changed = changed | propagateTopLevel(&TopLevelPTS,&newpts,sn);
+		}
+	}
+	// return true if we need to do more processing
+	return changed;
 }
 
 void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
@@ -410,19 +463,19 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 	}
 }
 
-void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
+void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 	int ret = 0;
-	// setup analysis
-	TopLevelPTS = bdd_false();
-	setupAnalysis(M);
-	// iterate through each function and each worklist
+	// iterate through each function
 	while(!FuncWorkList.empty()){
 		const Function *f = FuncWorkList.front();
 		FuncWorkList.pop_front();
 		StmtList *stmtList = StmtWorkList.find(f)->second;
+		// iterate through each node in the worklist
 		while (!stmtList->empty()) {
-			SEGNode *sn = stmtList->front();
-			stmtList->pop_front();
+			// mark nodes processed in later rounds
+			LoadAgain += round > 0 ? 1 : 0;
+			// get our current entry
+			SEGNode *sn = stmtList->front(); stmtList->pop_front();
 			// debugging statements
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-toplevel"
@@ -489,13 +542,6 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
-	// handle uninitialized loads
-	handleUninitializedLoads();
-	// print ouf final points-to set
-#undef  DEBUG_TYPE
-#define DEBUG_TYPE "fsaa-result"
-	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-	DEBUG(std::cout<<std::endl);
 }
 
 /// Register this pass

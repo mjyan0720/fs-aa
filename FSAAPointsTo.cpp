@@ -344,6 +344,7 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	propagateAddrTaken(sn);
 	// if we are storing everywhere
 	if (bdd_sat(fdd_ithvar(0,0) & topx)) {
+		DEBUG(dbgs() << "STORE: UNDEF LOCATION\n");
 		// return 1 if we are storing everything, everywhere
 		if (bdd_sat(fdd_ithvar(1,0) & topy)) return 1;
 #ifdef ENABLE_UNDEFSTORE
@@ -365,6 +366,8 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 				appendIfAbsent<SEGNode*>(StmtWorkList.at(mi->first),entry);
 		}
 #endif
+	} else {
+		DEBUG(dbgs() << "STORE TO: " << *(Int2Str->at(sn->getArgIds()->at(0))) << "\n");
 	}
 	return 0;
 }
