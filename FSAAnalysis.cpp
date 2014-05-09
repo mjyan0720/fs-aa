@@ -9,7 +9,6 @@
 // Add description of current file
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "flowsensitive-aa"
 #include "FSAAnalysis.h"
 #include "llvm/ADT/Statistic.h"
 
@@ -17,6 +16,8 @@ STATISTIC(Functions, "Functions: The # of functions in the module");
 
 using namespace llvm;
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// build SEG
 	constructSEG(M);
@@ -38,6 +39,8 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	return false;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-seg"
 void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	for (Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		Functions ++;
@@ -51,12 +54,14 @@ void FlowSensitiveAliasAnalysis::constructSEG(Module &M) {
 	}
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-callermap"
 void FlowSensitiveAliasAnalysis::addCaller(const Instruction *callInst, const Function *callee) {
 	// add SEGNode for this call, if it exists
 	std::map<const Instruction*,SEGNode*>::iterator elt;
 	elt = Inst2Node.find(callInst);
 	if (elt == Inst2Node.end()) {
-		DEBUG(dbgs() << "ADD CALLER: " << *callInst << " NOT FOUND\n");
+		DEBUG(dbgs() << "CALLER: " << *callInst << " NOT FOUND\n");
 		return;
 	}
 	addCaller(elt->second,callee);
@@ -66,7 +71,7 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 	const Function *caller = callInst->getParent()->getFunction();
 	// if callee is NULL, this is an indirect call; we will add it later
 	if (callee == NULL) {
-		DEBUG(dbgs() << "ADD CALLER: NULL CALLEE\n");
+		DEBUG(dbgs() << "NULL CALLEE\n");
 		return;
 	}
 	// add callee to map if it is not present
@@ -74,9 +79,8 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
 	}
 	// add callInst to callee's internal map, insert RetData for this call
-	//DEBUG(dbgs() << "CALLERMAP: added call from " << caller->getName() << " to " << callee->getName() << "\n");
+	DEBUG(dbgs() << "CALL FROM " << caller->getName() << " TO " << callee->getName() << "\n");
 	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
-	DEBUG(dbgs() << "CALLER ADDED\n");
 }
 
 // build caller map used in return processing
@@ -92,7 +96,7 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 			// TODO: what do NULL instructions mean; handle this later
 			Value *v = nit->first;
 			if (v == NULL) {
-				DEBUG(dbgs() << "ADD CALLER: SKIPPING NULL CALLER\n");
+				DEBUG(dbgs() << "NULL CALLER\n");
 				continue;
 			}
 			assert(isa<CallInst>(v) || isa<InvokeInst>(v));
@@ -104,6 +108,8 @@ void FlowSensitiveAliasAnalysis::initializeCallerMap(CallGraph *cg) {
 	}
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-valuemap"
 unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	unsigned id = 1;
 	std::pair<std::map<const Value*, unsigned>::iterator, bool> chk;
@@ -112,8 +118,8 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		const GlobalVariable *v = &*mi;
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(v, id++) );
 		// each global variable is a pointer, assign another id for what it points to
-		id ++;
-		assert( chk.second && "Value Id should be unique");
+		id++;
+		assert(chk.second && "Value Id should be unique");
 	}
 	/// map functions
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
@@ -121,14 +127,14 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		/// extra id for each function
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(f, id++) );
 		id++;
-		assert( chk.second && "Value Id should be unique");
+		assert(chk.second && "Value Id should be unique");
 		/// map arguments
 		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
 			const Argument *a = &*ai;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(a, id++) );
 			// give the location the argument points to an anonymous id
 			id++;
-			assert( chk.second && "Value Id should be unique");
+			assert(chk.second && "Value Id should be unique");
 		}
 	}
 	/// map local statements
@@ -157,26 +163,26 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 #ifdef ENABLE_OPT_1
 			if(sn->singleCopy() && !sn->undefSource()){
 				SingleCopySNs.push_back(sn);
-				//DEBUG(dbgs()<<"skip:\t"<<*sn<<"\n");
+				DEBUG(dbgs()<<"SKIP SINGLECOPY:\t"<<*sn<<"\n");
 				continue;
 			}
 #endif
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
-			assert( chk.second && "Value Id should be unique");
+			assert(chk.second && "Value Id should be unique");
 			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst)) id++;
 		}
 #ifdef ENABLE_OPT_1
 		for(std::vector<SEGNode *>::iterator vi=SingleCopySNs.begin(), ve=SingleCopySNs.end(); vi!=ve; ++vi){
 			SEGNode *sn = *vi;
-			// DEBUG(sn->dump());
+			DEBUG(sn->dump());
 			const Instruction *inst = sn->getInstruction();
 			const Value *from = sn->getSource();
-			assert( from!=NULL && "must has a source value");
+			assert(from!=NULL && "must has a source value");
 			DEBUG(from->dump());
 			std::map<const Value*, unsigned>::iterator mi = Value2Int.find(from);
-			assert( mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
-			// DEBUG(dbgs()<<"assign "<<mi->second<<" to\t"<<*sn<<"\n");
+			assert(mi!=Value2Int.end() && "right hand side of copy instruction has not been added into value map");
+			DEBUG(dbgs() << "VALUEMAP: ASSIGN " << mi->second << " TO " << *sn << "\n");
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, mi->second) );
 			assert( chk.second && "Value Id should be unique");
 		}
@@ -186,6 +192,8 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 	return id;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-worklist"
 void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
 		Function * f = &*mi;
@@ -195,7 +203,7 @@ void FlowSensitiveAliasAnalysis::initializeFuncWorkList(Module &M){
 }
 
 void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
-	// DEBUG(F->dump());
+	DEBUG(dbgs() << "WORKLIST FOR: " << F->getName() << "\n");
 	assert( Func2SEG.find(F)!=Func2SEG.end() && "seg doesn't exist");
 	SEG *seg = Func2SEG.find(F)->second;
 	StmtList *stmtList = new StmtList;
@@ -213,9 +221,11 @@ void FlowSensitiveAliasAnalysis::initializeStmtWorkList(Function *F){
 			continue;
 		stmtList->push_back(sn);
 	}
-	StmtWorkList.insert( std::pair<Function*, StmtList*>(F, stmtList) );
+	StmtWorkList.insert(std::pair<Function*, StmtList*>(F, stmtList));
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
 void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	SEG* seg = Func2SEG.at(f);
 	// don't need to preprocess declarations
@@ -279,7 +289,7 @@ void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Globa
 	// if the value is not in the value map, ignore it
 	if (v == NULL || !Value2Int.count(v)) return;
 	// otherwise, update the BDD so the global points to the constant value
-	// dbgs() << "ADDING MAPPING: " << g->getName() << " -> " << v->getName() << "\n";
+	DEBUG(dbgs() << "GLOBAL: MAP FROM " << g->getName() << " -> " << v->getName() << "\n";);
 	cid = Value2Int.at(v);
 	*tpts = (*tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,cid))) &
 		bdd_not(fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
@@ -313,6 +323,8 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	}
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-toplevel"
 // NOTE: only use this function after the regular analysis
 // make loads that point nowhere, point everywhere
 void FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
@@ -363,7 +375,7 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 				preprocessCopy(sn);
 #else
 				if(sn->undefSource()){
-					DEBUG(dbgs()<<"preprocessing undef source single copy"<<*sn<<"\n");
+					DEBUG(dbgs() << "PREPROCESS UNDEF SINGLE COPY:" << *sn << "\n");
 					preprocessUndef(sn);
 				}
 #endif
@@ -390,6 +402,8 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 			SEGNode *sn = stmtList->front();
 			stmtList->pop_front();
 			// debugging statements
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-toplevel"
 			DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
 			DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
 			// if this is a preserving node, just propagateAddrTaken
@@ -447,13 +461,17 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M) {
 				break;
 			}
 			// print out sets
-			// DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
-			// DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-addrtaken"
+			DEBUG(dbgs()<<"NODE INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
+			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
 	// handle uninitialized loads
 	handleUninitializedLoads();
 	// print ouf final points-to set
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-result"
 	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
 	DEBUG(std::cout<<std::endl);
 }

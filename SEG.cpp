@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "flowsensitive-aa"
 #include "SEG.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/LeakDetector.h"
@@ -19,6 +18,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/Constants.h"
+
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-seg"
 
 STATISTIC(TotalInst,	"Stetements: The total # of statments");
 STATISTIC(SEGInst,	"SEGInst: The # of Instructions in Data Flow Graph");
@@ -69,14 +71,14 @@ void SEG::initialize() {
 #endif
 			this->insert(sn);
 			inst2sn.insert( std::pair<const Instruction*, SEGNode*>(I, sn) );
-		}	
+		}
 	}
 
 	// set up predecessor/successor for entrySN
 	const Instruction *firstInst = &*(Fn->begin()->begin());
 	SEGNode *firstSN = inst2sn.find(firstInst)->second;
 	EntryNode->addSuccessor(firstSN);
-	// DEBUG(errs()<<"Set edges: "<<*EntryNode<<" --> "<<*firstSN<<"\n");
+	DEBUG(errs() << "Set edges: " << *EntryNode << " --> " << *firstSN << "\n");
 
 	// set up uses for entrySN
 	for(Function::const_arg_iterator ai=Fn->arg_begin(), ae=Fn->arg_end(); ai!=ae; ++ai){
@@ -87,7 +89,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *useSN = inst2sn.find(useInst)->second;
 			EntryNode->addUser(useSN);
-			// DEBUG(errs()<<"Set uses: "<<*EntryNode<<" --> "<<*useSN<<"\n");
+			DEBUG(errs() << "Set uses: " << *EntryNode << " --> " << *useSN << "\n");
 		}
 	}
 
@@ -103,7 +105,7 @@ void SEG::initialize() {
 				assert(inst2sn.find(succInst)!=inst2sn.end() && "successor instruction is not in seg");
 				SEGNode *succSN = inst2sn.find(succInst)->second;
 				sn->addSuccessor(succSN);
-				// DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
+				DEBUG(errs() << "Set edges: " << *sn << " --> " << *succSN << "\n");
 			}
 		} else {
 			const Instruction *succInst = blk->getInstList().getNext(I);
@@ -112,7 +114,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(succInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *succSN = inst2sn.find(succInst)->second;
 			sn->addSuccessor(succSN);
-			// DEBUG(errs()<<"Set edges: "<<*sn<<" --> "<<*succSN<<"\n");
+			DEBUG(errs() << "Set edges: " << *sn << " --> " << *succSN << "\n");
 		}
 		for(Value::const_use_iterator usei=I->use_begin(), usee=I->use_end(); usei!=usee; ++usei){
 			const Instruction *useInst = dyn_cast<Instruction>(*usei);
@@ -120,7 +122,7 @@ void SEG::initialize() {
 			assert(inst2sn.find(useInst)!=inst2sn.end() && "successor instruction is not in seg");
 			SEGNode *useSN = inst2sn.find(useInst)->second;
 			sn->addUser(useSN);
-			// DEBUG(errs()<<"Set uses: "<<*sn<<" --> "<<*useSN<<"\n");
+			DEBUG(errs() << "Set uses: " << *sn << " --> " << *useSN << "\n");
 		}
 #ifdef ENABLE_OPT_1
 		// detect whether there exists a singlecopy cycle
@@ -196,7 +198,7 @@ void SEG::applyTransformation(){
 			}
 			if(sn->pred_size()==1){
 				DEBUG(errs()<<"Apply T2 : \n");
-				// DEBUG(sn->dump());
+				DEBUG(sn->dump());
 				SEGNode *pred = *(sn->pred_begin());
 				pred->transferSuccessor(sn);
 				pred->removeSuccessor(sn);
@@ -206,7 +208,7 @@ void SEG::applyTransformation(){
 				WorkList.erase(sn);
 			} else if(sn->succ_size()==1) {
 				DEBUG(errs()<<"Apply T2 : \n");
-				// DEBUG(sn->dump());
+				DEBUG(sn->dump());
 				SEGNode *succ = *(sn->succ_begin());
 				succ->transferPredecessor(sn);
 				sn->removeSuccessor(succ);
@@ -220,10 +222,10 @@ void SEG::applyTransformation(){
 		for(scc_iterator<SEG*> I=scc_begin(this), E=scc_end(this); I != E; ++I){
 			std::vector<SEGNode *> &SCC = *I;
 			assert( !SCC.empty() && "SCC with no instructions");
-		
+
 			if(SCC.size()==1)//it's a single node, not connected part
 				continue;
-			
+
 			bool applicable = true;
 			for(unsigned i=0, e=SCC.size(); i!=e; ++i){
 				if(SCC[i]->isnPnode()==true){
@@ -234,10 +236,10 @@ void SEG::applyTransformation(){
 
 			if(applicable){//all nodes in SCC are Pnodes
 				DEBUG(errs()<<"Apply T4("<<SCC.size()<<") : \n");
-				/* DEBUG(
+				DEBUG(
 					for(unsigned i=0, e=SCC.size(); i!=e; ++i)
 						errs()<<"  "<<*SCC[i]<<"\n"
-				); */
+				);
 				//keep the first one as header
 				SEGNode *header = SCC[0];
 				for(unsigned i=1, e=SCC.size(); i!=e; ++i){

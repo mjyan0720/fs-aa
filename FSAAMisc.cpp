@@ -1,6 +1,8 @@
-//#define DEBUG_TYPE "flowsensitive-aa"
 #include "FSAAnalysis.h"
 #include <string>
+
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-reversevaluemap"
 
 // macros to make reverseMap function more readable
 #define insertName(m,r,f,s)                                             \
@@ -29,9 +31,9 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		// if value is an instruction or argument, add it's function's parent name
 		if (isa<Instruction>(v))
 			name = new ss(ss(cast<Instruction>(v)->getParent()->getParent()->getName())+"_"+ss(prename));
-		else if (isa<Argument>(v))	
+		else if (isa<Argument>(v))
 			name = new ss(ss(cast<Argument>(v)->getParent()->getName())+"_"+ss(prename));
-		else 
+		else
 			name = new ss(prename);
 /*#ifdef ENABLE_OPT_1
 		// in the opt1 version, they are not assigned an id, they share the id with
@@ -39,27 +41,27 @@ std::map<unsigned int,std::string*> *reverseMap(std::map<const Value*,unsigned i
 		// insert will fail.
 		if (isa<GetElementPtrInst>(v) | isa<CastInst>(v))
 			continue;
-#endif	
-*/		DEBUG(v->dump());
+#endif*/
+		DEBUG(v->dump());
 		// add hidden names for each value type that has hidden values
-		if (isa<AllocaInst>(v)) { 
+		if (isa<AllocaInst>(v)) {
 			insertName(inv,ret,id,name);
 			insertName(inv,ret,id+1,new ss(*name + "__HEAP"));
 		} else if (isa<GlobalVariable>(v)) {
 			insertName(inv,ret,id,name);
-			insertName(inv,ret,id+1,new ss(*name + "__VALUE")); 
+			insertName(inv,ret,id+1,new ss(*name + "__VALUE"));
 		} else if (isa<Function>(v)) {
 			insertName(inv,ret,id,name);
-			insertName(inv,ret,id+1,new ss(*name + "__FUNCTION")); 
+			insertName(inv,ret,id+1,new ss(*name + "__FUNCTION"));
 		} else if (isa<Argument>(v)) {
 			insertName(inv,ret,id,name);
-			insertName(inv,ret,id+1,new ss(*name + "__ARGUMENT")); 
+			insertName(inv,ret,id+1,new ss(*name + "__ARGUMENT"));
 		// otherwise, store regular name only
 		} else {
 			insertName(inv,ret,id,name);
 		}
 	}
-  // store everything value 
+	// store everything value
 	insertName(inv,ret,0,new ss("EVERYTHING"));
 	return inv;
 }

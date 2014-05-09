@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//#define DEBUG_TYPE "flowsensitive-aa"
 #include "SEGNode.h"
 #include "SEG.h"
 #include "llvm/Support/LeakDetector.h"
@@ -19,6 +18,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-seg"
 
 using namespace llvm;
 

@@ -1,7 +1,6 @@
 #ifndef FSAANALYSIS_H
 #define FSAANALYSIS_H
 
-//#define DEBUG_TYPE "flowsensitive-aa"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFG.h"
@@ -26,7 +25,6 @@
 #include <algorithm>
 
 using namespace llvm;
-
 
 typedef std::vector<SEGNode*> NodeVec;
 typedef std::list<SEGNode*> StmtList;
