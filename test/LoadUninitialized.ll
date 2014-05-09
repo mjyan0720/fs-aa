@@ -1,3 +1,7 @@
+; goal of test
+; for uninitialized load, it should points to everywhere
+
+
 @A = global i32 7
 
 define void @main() {
@@ -6,6 +10,13 @@ define void @main() {
 	%A3 = inttoptr i32 %A2 to i32*
 	%A4 = load i32* %A3
 	unreachable
+}
+
+
+define i32 @func1() {
+	
+
+
 }
 
 ; Expected Output

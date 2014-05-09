@@ -13,23 +13,23 @@ target triple = "x86_64-unknown-linux-gnu"
 @T = global i32* @Q
 @M = global i32 300
 @N = global i32* @M 
-@S = global %T1 { i32 10, i32* @M,  i32** @N}
+@S = global %T1 { i32 10, i32* @M,  i32** @N}		; S->EVERYTHING
 
 define i32 @main() {
 entry:
-	%A1 = alloca %T1
-	%A2 = getelementptr %T1* %A1, i32 0, i32 2
-	store i32** @T, i32*** %A2
+	%A1 = alloca %T1					; A1 -> A1_HEAP/P
+	%A2 = getelementptr %T1* %A1, i32 0, i32 2		; A2 -> A1_HEAP/P
+	store i32** @T, i32*** %A2				; A1_HEAP -> Q/P
 	br label %LoopBegin
 LoopBegin:
-	%A4 = phi %T1* [%A1, %entry], [@S, %LoopEnd]
-	%A3 = getelementptr %T1* %A4, i32 0, i32 2
-	store i32** @G, i32*** %A3
+	%A4 = phi %T1* [%A1, %entry], [@S, %LoopEnd]		; A4 -> EVERYTHING
+	%A3 = getelementptr %T1* %A4, i32 0, i32 2		; A3 -> EVERYTHING
+	store i32** @G, i32*** %A3				; EVERYTING -> P
 	br label %LoopEnd
 LoopEnd:
 	br i1 1, label %LoopBegin, label %end
 end:
-	%A10 = load i32** @N
+	%A10 = load i32** @N					; A10 -> M_VALUE/P/P__VALUE/
         ret i32 0
 }
 
