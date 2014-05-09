@@ -1,4 +1,3 @@
-//#define DEBUG_TYPE "flowsensitive-aa"
 #include "llvm/Support/Debug.h"
 #include <iostream>
 #include <cstdio>
@@ -85,6 +84,8 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, S
 	return propagateTopLevel(oldtpts,newpart,&tmp,sn);
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-propagatetoplevel"
 // propagate top level with strong update
 bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, bdd* update, SEGNode *sn) {
 	const Function *f = sn->getParent()->getFunction();
@@ -101,16 +102,20 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 				DEBUG(dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n");
 			}
 	}
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-strongupdate"
 	// update old
 	*oldtpts = (*oldtpts | *newpart) & *update;
 	if (*update != bdd_true()) {
 		DEBUG(dbgs() << "STRONG UPDATE:\n");
-		// DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
+		DEBUG(printBDD(LocationCount,Int2Str,*oldtpts));
 	}
 	// return true if the worklist was changed
 	return changed;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-propagateaddrtaken"
 // propagate address taken
 bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 	bdd oldink, newink;
@@ -137,6 +142,8 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 	return changed;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
 // NOTE: alloc should never have undefined arguments
 int FlowSensitiveAliasAnalysis::preprocessAlloc(SEGNode *sn) {
 	std::vector<unsigned int> *ArgIds = new std::vector<unsigned int>();
@@ -160,7 +167,6 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 	for (User::const_op_iterator oit = inst->op_begin(); oit != inst->op_end(); ++oit) {
 		// if argument out-of-range, store id 0
 		Value *v = oit->get();
-		//v->dump();
 		if (Value2Int.count(v) != 0){
 			id = Value2Int.at(v);
 		} else { id = 0; sn->setDefined(false); }
@@ -169,7 +175,6 @@ int FlowSensitiveAliasAnalysis::preprocessCopy(SEGNode *sn) {
 		argset |= fdd_ithvar(0,id);
 	}
 	sn->setArgIds(ArgIds);
-
 	// if arguments are defined, store data to perform relprod
 	if (sn->getDefined()) {
 		// defined value name
@@ -227,9 +232,6 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	pd = Value2Int.count(p) != 0;
 	vd = Value2Int.count(v) != 0;
 	sn->setDefined(pd & vd);
-
-	// DEBUG(sn->dump());
-	// DEBUG(dbgs()<<"Defined:\t"<<(int)(sn->getDefined())<<"\n");
 	// store ids for argument values, or 0 for undefined
 	ArgIds->push_back(pd ? Value2Int.at(p) : 0);
 	ArgIds->push_back(vd ? Value2Int.at(v) : 0);
@@ -241,6 +243,8 @@ int FlowSensitiveAliasAnalysis::preprocessStore(SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-alloc"
 int FlowSensitiveAliasAnalysis::processAlloc(bdd *tpts, SEGNode *sn) {
 	bdd alloc;
 	// add pair to top-level pts
@@ -252,6 +256,8 @@ int FlowSensitiveAliasAnalysis::processAlloc(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-copy"
 int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	bdd bddx, vs, qt, newpts;
 	// if defined, x points to quantifying over bdd + vs choices for all v values
@@ -264,12 +270,7 @@ int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	// else, x points everywhere
 	else
 		newpts = sn->getStaticData()->at(0);
-	// print debugging information
-	/* if (bdd_unsat(newpts))
-		DEBUG(dbgs() << "empty copy result\n");
-	else
-		DEBUG(dbgs() << "not empty\n");
-	*/// store new top-level points-to set
+	// store new top-level points-to set
 	propagateTopLevel(tpts,&newpts,sn);
 	// propagate addr taken
 	sn->setOutSet(sn->getInSet());
@@ -277,8 +278,12 @@ int FlowSensitiveAliasAnalysis::processCopy(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-load"
 int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 	bdd bddx, bddy, topy, ky, qt, newpts;
+	// debugging info
+	DEBUG(dbgs() << "LOAD INSET:\n"; printBDD(LocationCount,Int2Str,sn->getInSet()));
 	// if defined, do standard lookup
 	if (sn->getDefined()) {
 		bddx = sn->getStaticData()->at(0);
@@ -293,10 +298,6 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		newpts = bddx & ky;
 		// if newpts is empty, it means we are loading from an uninitialized value: then x -> everywhere
 		// if topy -> everywhere, then load result x should point to everywhere
-//		if (newpts == bdd_false()) {
-//			DEBUG(dbgs() << "Load uninitialized\n");
-//			newpts = bddx;
-//		}
 		if (bdd_sat(topy & fdd_ithvar(0,0))) {
 			DEBUG(dbgs() << "Top(y) points everywhere\n");
 			newpts = bddx;
@@ -311,6 +312,8 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-store"
 int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	bdd bddx, bddy, topx, topy, outkpts, oldtpts;
 	// lookup where x points, get PTop(x)
@@ -358,7 +361,9 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
-// TODO: reachability is too strict
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
+// TODO: reachability is too strict; get closure over points-to
 // ret bdd with pairs that originate either from an argument or a global variable
 bdd genFilterSet(bdd inset, bdd gvarpts, bdd argset) {
 	// if filter can point anywhere, return whole inset
@@ -409,12 +414,12 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	cd->isDefinedFunc = fun != NULL && Value2Int.count(funv) != 0;
 	// if function called is defined, store it's name
 	if (cd->isDefinedFunc) {
-		DEBUG(dbgs() << "PREPROCESS DEFINED\n");
+		DEBUG(dbgs() << "CALL DEFINED\n");
 		cd->funcId = Value2Int.at(funv);
 		cd->funcName = fdd_ithvar(0,cd->funcId);
 	// otherwise, store every possible function it could point to
 	} else {
-		DEBUG(dbgs() << "PREPROCESS UNDEFINED\n");
+		DEBUG(dbgs() << "CALL UNDEFINED\n");
 		cd->funcId = 0;
 		cd->funcName = matchingFunctions(funv);
 		sn->setDefined(false);
@@ -450,6 +455,8 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-call"
 // return a vector of Function* representing where a function points
 std::vector<const Function*> *
 FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funId, bdd funName, Type *funType)
@@ -580,6 +587,8 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
 int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 	Value *ret = cast<ReturnInst>(sn->getInstruction())->getReturnValue();
 	sn->setArgIds(new std::vector<unsigned int>());
@@ -596,6 +605,8 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-ret"
 int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	std::map<const Function*,RetData*>::iterator cit;
 	std::map<const Function*,RetData*> *Calls;
@@ -640,6 +651,8 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-preprocess"
 int FlowSensitiveAliasAnalysis::preprocessUndef(SEGNode *sn) {
 	sn->setArgIds(new std::vector<unsigned int>());
 	sn->setStaticData(new std::vector<bdd>());
@@ -650,6 +663,8 @@ int FlowSensitiveAliasAnalysis::preprocessUndef(SEGNode *sn) {
 	return 0;
 }
 
+#undef  DEBUG_TYPE
+#define DEBUG_TYPE "fsaa-undef"
 int FlowSensitiveAliasAnalysis::processUndef(bdd *tpts, SEGNode *sn) {
 	// move in to out
 	sn->setOutSet(sn->getInSet());

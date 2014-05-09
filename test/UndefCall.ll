@@ -34,4 +34,8 @@ define i32* @call3() {
 
 
 ;Expected result
-; 
+; only need to focus on main_val
+; main_val -> A__VALUE
+; main_val -> B__VALUE
+; main_val -> C__VALUE
+; main_ret -> EVERYTHING 
