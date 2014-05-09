@@ -12,7 +12,9 @@
 #include "FSAAnalysis.h"
 #include "llvm/ADT/Statistic.h"
 
-STATISTIC(Functions, "Functions: The # of functions in the module");
+STATISTIC(Functions,   "Functions: The # of functions in the module");
+STATISTIC(UninitLoads, "Uninit Loads: The # of uninitialized loads in the module");
+STATISTIC(LoadAgain,   "Nodes Forced By Load: The # of nodes processed again due to uninitialized loads");
 
 using namespace llvm;
 

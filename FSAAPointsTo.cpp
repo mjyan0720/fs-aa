@@ -12,6 +12,8 @@
 #include "FSAAnalysis.h"
 #include "llvm/IR/Instructions.h"
 
+#define ENABLE_UNDEFSTORE
+
 /*
  * TODO: over the course of evaluation, we may discover that a node
  *       points to 0 (i.e. everything); in this case, we should
@@ -348,11 +350,11 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 			if (mi->second->isDeclaration()) continue;
 			SEGNode *entry = mi->second->getEntryNode();
 			// update every entry node's outset
-			entry->setInSet(entry->getIntSet() | topy);
+			entry->setInSet(entry->getInSet() | topy);
 			entry->setOutSet(entry->getInSet());
 			// propagate addr taken and toplevel
 			if (!propagateAddrTaken(entry) || changed)
-				appendIfAbsent<SEGNode*>(StmtWorklist->at(mi->first),*i);
+				appendIfAbsent<SEGNode*>(StmtWorkList.at(mi->first),entry);
 		}
 #endif
 	}
