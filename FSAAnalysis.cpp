@@ -56,6 +56,9 @@ void FlowSensitiveAliasAnalysis::clean(){
 		delete mi->second;
 	}
 	delete Int2Str;
+	for(CallerMap::iterator mi=Func2Calls.begin(), me=Func2Calls.end(); me!=mi; ++mi){
+		delete mi->second;
+	}
 }
 
 #undef  DEBUG_TYPE

@@ -18,7 +18,7 @@
 #include "fdd.h"
 #include "SEG.h"
 #include "BDDMisc.h"
-#include "Extra.h"
+//#include "Extra.h"
 #include <set>
 #include <map>
 #include <list>
@@ -30,6 +30,11 @@ typedef std::vector<SEGNode*> NodeVec;
 typedef std::list<SEGNode*> StmtList;
 struct CallerEntry {
 	std::map<const Function*,RetData*> Calls;
+	~CallerEntry() {
+		for(std::map<const Function*, RetData*>::iterator mi=Calls.begin(), me=Calls.end(); mi!=me; ++mi){
+			delete mi->second;
+		}
+	}
 };
 typedef std::map<const Function*,CallerEntry*> CallerMap;
 typedef std::map<const Function*, std::list<SEGNode*>*> WorkList;
@@ -237,7 +242,7 @@ public:
 	int processRet(bdd *tpts,   llvm::SEGNode *sn);
 
 	// helper functions for process call
-	std::vector<const Function*> *computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
+	std::vector<const Function*> computeTargets(bdd *tpts, SEGNode *sn, int funId, bdd funName, Type *funType);
 	void processTarget(bdd *tpts, SEGNode *funNode, bdd filter, const Function *target);
 	bdd matchingFunctions(const Value *funCall);
 
