@@ -1,0 +1,15 @@
+- How to handle: global variables
+	- Global variables may be both top-level and address-taken when a global variable is used in the static initializer of
+		a different global
+	- In this case, we have alot of issues if we try to treat globals as top-level and address-taken, we must implicitly
+		add them to insets of our functions. However, since we may not a complete ordering on our call graph (for example,
+		we have no "main"), we must pass these global into the inset of every function's entry node. But then we must collect
+		them from the outset of every terminator block in the function. Then, depending on the order that we process these
+		functions in, we will get different results.
+
+- How to handle: storing to an undef location
+	- Even though storing to an undef location updates globals, we don't need to force all functions to be processed again.
+		Why? Because doing so is not flow-sensitive. However, because we don't process functions in call-graph order,
+		we may propagate more informatoin to a function than it actually needs. But, this process is conservative.
+	- In order to be completely precise, we need a completely accurate picture of the call graph, which we may not have;
+		we may be analayzing a library with no "main" function, for example

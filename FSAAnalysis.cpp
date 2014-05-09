@@ -287,92 +287,44 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 	entry->setStaticData(StaticData);
 }
 
-void FlowSensitiveAliasAnalysis::preprocessGlobal(unsigned int id, bdd *tpts) {
-	*tpts = *tpts | (fdd_ithvar(0,id) & fdd_ithvar(1,id+1));
-}
-
-// recurse through nested constants to find an underlying value
-const Value *unwindConstant(const Constant *c) {
-	Instruction *i;
-	// handle constant expr case
-	if (isa<ConstantExpr>(c)) {
-		i = cast<ConstantExpr>(const_cast<Constant*>(c))->getAsInstruction();
-		// if this instruction is a cast, recurse on it's first operand
-		if (i->isCast())
-			unwindConstant(cast<Constant>(i->getOperand(0)));
-		// if it is a GEP, get it's pointer
-		else if (isa<GetElementPtrInst>(i))
-			unwindConstant(cast<Constant>(cast<GetElementPtrInst>(i)->getPointerOperand()));
-	// handle function or global variable case case
-	} else if (isa<Function>(c) || isa<GlobalVariable>(c)) {
-			return c;
-	}
-	// we don't know how to handle this instruction; exit
-	return NULL;
-}
-
-// we consider vectors, arrays, and structs to be opaque
-bool isOpaqueType(Value *v) {
+// we don't like pointers or structs
+bool isPointerOrStructType(Value *v) {
 	// while underlying type is a pointer, remove it
 	Type *t = v->getType();
-	while (isa<PointerType>(t)) t = cast<PointerType>(t)->getElementType();
-	// is the final type opaque?
-	return t->isArrayTy() || t->isStructTy() || t->isVectorTy();
+	// unwrap sequential types that are not pointers
+	while (isa<SequentialType>(t)) {
+		if (isa<PointerType>(t)) return true;
+		else t = cast<SequentialType>(t)->getElementType();
+	}
+	// if it is a struct type, return true
+	return t->isStructTy();
 }
 
-// process simple constant expressions in global declarations
+// make complex globals point everywhere
 void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
-	const Value *v;
-	bdd newpts, killpts;
-	// setup kill pts
-	killpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
-	// if this global has no initializer and it's not opaque, ignore it
-	if (!g->hasInitializer() && !isOpaqueType(g)) return;
-	// if it's opaque, it points everywhere
-	if (isOpaqueType(g)) {
-		newpts = fdd_ithvar(0,id);
-	// else it has an initializer and it's not opaque; process initializer
-	} else {
-		v = unwindConstant(g->getInitializer());
-		// if the value is not in the value map, ignore it
-		if (v == NULL || !Value2Int.count(v)) return;
-		// debugging info
-		DEBUG(dbgs() << "GLOBAL: MAP FROM " << g->getName() << " -> " << v->getName() << "\n";);
+	bdd newpts;
+	// if this guy has an initializer or if it is a type we don't like, it points everywhere
+	if (g->hasInitializer() || isPointerOrStructType(g)) {
+		DEBUG(dbgs() << "GLOBAL: " << g->getName() << " POINTS EVERYWHERE\n";);
 		// add new pts, remove kill pts
-		newpts = fdd_ithvar(0,id) & fdd_ithvar(1,Value2Int.at(v));
-	}
+		newpts = fdd_ithvar(0,id) & fdd_ithvar(1,0);
+	// new pts is standard one
+	} else newpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
 	// update the tpts with the new global information
-	*tpts = (*tpts | newpts) & bdd_not(killpts);
+	*tpts |= newpts;
 }
 
 void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 	// preprocess all global variables
-	globalValueNames = bdd_false();
 	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
-		preprocessGlobal(Value2Int.at(v), &TopLevelPTS);
+		// add global to top level pointsto set
+		processGlobal(Value2Int.at(v),&TopLevelPTS,v);
 		bdd name = fdd_ithvar(0,Value2Int.at(v));
-		// add them to global variable pointer set
-		globalValueNames |= name;
 		// if they are constants, add to constant names
 		if (v->isConstant()) constantNames |= name;
-	}
-	// process all global variables with constant expressions
-	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi)
-		processGlobal(Value2Int.at(&*mi),&TopLevelPTS,&*mi);
-	// propagate global pts to each function's entry node
-	bdd GlobalPTS = TopLevelPTS & globalValueNames;
-	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
-		// get SEG entry node
-		if (mi->second->isDeclaration()) continue;
-		SEGNode *entry = mi->second->getEntryNode();
-		// setup entry node inset and outset
-		entry->setInSet(GlobalPTS);
-		entry->setOutSet(GlobalPTS);
-		// propagate global data
-		propagateAddrTaken(entry);
 	}
 }
 
