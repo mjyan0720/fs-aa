@@ -296,7 +296,6 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		// get PK(PTop(y))
 		ky   = bdd_relprod(sn->getInSet(),topy,qt);
 		newpts = bddx & ky;
-		// if newpts is empty, it means we are loading from an uninitialized value: then x -> everywhere
 		// if topy -> everywhere, then load result x should point to everywhere
 		if (bdd_sat(topy & fdd_ithvar(0,0))) {
 			DEBUG(dbgs() << "Top(y) points everywhere\n");
@@ -304,6 +303,15 @@ int FlowSensitiveAliasAnalysis::processLoad(bdd *tpts, SEGNode *sn) {
 		}
 	// else, x points everywhere
 	} else newpts = sn->getStaticData()->at(0);
+	// if newpts is empty and load is defined, add to undefLoadNodes
+	if (bdd_unsat(newpts) && sn->getLoadDefined()) {
+		sn->setLoadDefined(false);
+		undefLoadNodes.insert(sn);
+	// if newpts not empty and undefined, remove from undefLoadNodes
+	} else if (!sn->getLoadDefined()) {
+		sn->setLoadDefined(true);
+		undefLoadNodes.erase(sn);
+	}
 	// extend top pts
 	propagateTopLevel(tpts,&newpts,sn);
 	// propagate addr taken

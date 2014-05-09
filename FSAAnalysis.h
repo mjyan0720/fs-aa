@@ -75,6 +75,9 @@ private:
 	/// names of load instructions (at the end, unitialized loads point to everything)
 	bdd loadNames;
 
+	/// set of SEGNodes for load empty load instructions
+	set<SEGNode*> undefLoadNodes;
+
 	/// names of constant values
 	bdd constantNames;
 

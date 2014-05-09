@@ -70,26 +70,26 @@ private:
 	/// Identifier of this SEGNode in the BDD
 	unsigned int Id;
 
-  /// Store variable Ids for arguments to this instruction
-  /// alloca:	x = Alloca i; ArgIds[0]=Idof(x)+1
-  /// copy:	x = y, z...;  ArgIds[0]=Idof(y), ArgIds[1]=Idof(z)
-  /// load:	x = load p;   ArgIds[0]=Idof(p),
-  /// store:	Store v, p;   ArgIds[0]=Idof(p), ArgIds[1]=Idof(v)
-  /// call: 
-  /// return:
+	/// Store variable Ids for arguments to this instruction
+	/// alloca:	x = Alloca i; ArgIds[0]=Idof(x)+1
+	/// copy:	x = y, z...;  ArgIds[0]=Idof(y), ArgIds[1]=Idof(z)
+	/// load:	x = load p;   ArgIds[0]=Idof(p),
+	/// store:	Store v, p;   ArgIds[0]=Idof(p), ArgIds[1]=Idof(v)
+	/// call:
+	/// return:
 	std::vector<unsigned int> *ArgIds;
 
-  /// Store static BDDs computed for this instruction
-  /// alloca:	x = alloca i; StaticData[0]={x->loc(i)}
-  /// copy:	x = y, z...;  StaticData[0]={x->empty}, StaticData[1]={y|z|..->empty}, StaticData[2]={all->empty}
-  /// load:	x = load p;   StaticData[0]={x->empty}, StaticData[1]={p->empty}, StaticData[2]={all->empty}
-  /// store:	store v, p;   StaticData[0]={p->empty}, StaticData[1]={v->empty}
-  /// call:
-  /// return:
+	/// Store static BDDs computed for this instruction
+	/// alloca:	x = alloca i; StaticData[0]={x->loc(i)}
+	/// copy:	x = y, z...;  StaticData[0]={x->empty}, StaticData[1]={y|z|..->empty}, StaticData[2]={all->empty}
+	/// load:	x = load p;   StaticData[0]={x->empty}, StaticData[1]={p->empty}, StaticData[2]={all->empty}
+	/// store:	store v, p;   StaticData[0]={p->empty}, StaticData[1]={v->empty}
+	/// call:
+	/// return:
 	std::vector<bdd> *StaticData;
 
-  /// Bool to record whether all arguments are defined or not
-  bool Defined;
+	/// Bool to record whether all arguments are defined or not
+	bool Defined;
 
 	/// ExtraData - field stores extradata for instructions that need it
 	ExtraData *Extra;
@@ -107,9 +107,9 @@ public:
 	explicit SEGNode(SEG *parent);
 
 	explicit SEGNode(const Instruction *inst, SEG *parent);
-	
+
 	~SEGNode();
-	
+
 	friend class SEG;
 
 	/// getInstruction - Return LLVM Instruction the node contains
@@ -130,14 +130,14 @@ public:
 	bdd getInSet()                                    { return In;                     }
 	bdd getOutSet()                                   { return Out;                    }
 	std::vector<bdd> *getStaticData()                 { return StaticData;             }
-  bool getDefined()                                 { return Defined;                }
+	bool getDefined()                                 { return Defined;                }
 	ExtraData *getExtraData()                         { return Extra;                  }
 	void setArgIds(std::vector<unsigned int> *ArgIds) { this->ArgIds = ArgIds;         }
 	void setId(unsigned int Id)                       { this->Id = Id;                 }
 	void setInSet(bdd In)                             { this->In = In;                 }
 	void setOutSet(bdd Out)                           { this->Out = Out;               }
 	void setStaticData(std::vector<bdd> *StaticData)  { this->StaticData = StaticData; }
-  void setDefined(bool Defined)                     { this->Defined = Defined;       }
+	void setDefined(bool Defined)                     { this->Defined = Defined;       }
 	void setExtraData(ExtraData* Extra)               { this->Extra = Extra;           }
 
 	/// SEG-CFG iterators
@@ -168,7 +168,7 @@ public:
 	def_iterator            def_begin()        { return Defs.begin();                  }
 	const_def_iterator      def_begin() const  { return Defs.begin();                  }
 	def_iterator            def_end()          { return Defs.end();                    }
-	const_def_iterator      def_end() const    { return Defs.end();                    }	
+	const_def_iterator      def_end() const    { return Defs.end();                    }
 	unsigned                def_size() const   { return (unsigned)Defs.size();         }
 
 private:
@@ -177,7 +177,7 @@ private:
 	/// No duplicated SEG-CFG edges.
 	void addPredecessor(SEGNode *pred);
 
-	/// removePredecessor - Remove pred from the predecessor list of 
+	/// removePredecessor - Remove pred from the predecessor list of
 	/// this SEGNode. The Successor list of pred is automatically updated.
 	void removePredecessor(SEGNode *pred);
 
@@ -205,7 +205,7 @@ private:
 
 	/// transferSuccessor - Transfers all the successors of from to
 	/// this SEGNode. copy all successors to current SEGNode and remove all
-	/// successors of from. 
+	/// successors of from.
 	void transferSuccessor(SEGNode *from);
 
 	/// addDef - Add def as a definition of this SEGNode.
@@ -307,6 +307,6 @@ template <> struct GraphTraits<Inverse<const SEGNode*> > {
 	}
 };
 
-}//End llvm namespace
+} // End llvm namespace
 
 #endif
