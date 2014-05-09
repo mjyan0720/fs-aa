@@ -480,7 +480,10 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-toplevel"
 			DEBUG(dbgs()<<"TOPLEVEL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
-			DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
+			if(sn->getInstruction()==NULL)
+				DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\n");
+			else
+				DEBUG(dbgs()<<"Processing :\t"<<*sn<<"\t"<<sn->getInstruction()->getOpcodeName()<<"\t"<<isa<CallInst>(sn->getInstruction())<<"\n");
 			// if this is a preserving node, just propagateAddrTaken
 			if (!sn->isnPnode()) {
 				propagateAddrTaken(sn);
