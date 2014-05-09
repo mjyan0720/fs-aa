@@ -22,7 +22,7 @@ define i32 @main() {
 
 
 ; expected result
-; main_E --> D 
+; main_E --> D
 ; main_D --> C
 ; main_C --> B
 ; main_B --> A

@@ -536,7 +536,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 			// if ret is non-zero, stop
 			if (ret) {
 				dbgs() << "EVERYTHING ALIASES\n";
-				break;
+				return;
 			}
 			// print out sets
 #undef  DEBUG_TYPE

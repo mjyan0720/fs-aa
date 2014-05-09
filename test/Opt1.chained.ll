@@ -12,7 +12,7 @@ target triple = "x86_64-unknown-linux-gnu"
 @G = global i32* @P
 @T = global i32* @Q
 @M = global i32 300
-@N = global i32* @M 
+@N = global i32* @M
 @S = global %T1 { i32 10, i32* @M,  i32** @N}		; S->EVERYTHING
 
 define i32 @main() {
@@ -30,7 +30,7 @@ LoopEnd:
 	br i1 1, label %LoopBegin, label %end
 end:
 	%A10 = load i32** @N					; A10 -> M_VALUE/P/P__VALUE/
-        ret i32 0
+	ret i32 0
 }
 
 ;Expected Output
