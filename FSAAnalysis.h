@@ -123,6 +123,8 @@ private:
 	/// add Int2Func mapping, build default points-to set for arguments
 	void preprocessFunction(const Function *f);
 
+	void clean();
+
 public:
 	static char ID;
 	FlowSensitiveAliasAnalysis() : ModulePass(ID){

@@ -38,7 +38,16 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	doAnalysis(M);
 	// done
 	dbgs()<<"Analysis Done\n";
+
+	clean();
+
 	return false;
+}
+
+void FlowSensitiveAliasAnalysis::clean(){
+	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi){
+		free(mi->second);
+	}
 }
 
 #undef  DEBUG_TYPE
