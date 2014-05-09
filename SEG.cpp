@@ -35,6 +35,7 @@ SEG::SEG(const Function *fn) : Fn(fn){
 	initialize();
 	TotalInst+=size();
 	applyTransformation();
+	DEBUG(this->dump());
 }
 
 void SEG::dump() const {
@@ -262,7 +263,8 @@ void SEG::applyTransformation(){
 }
 
 SEG::~SEG() {
-	delete EntryNode;
+	if(IsDeclaration==false)
+		delete EntryNode;
 	LeakDetector::removeGarbageObject(this);
 }
 
