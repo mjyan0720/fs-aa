@@ -8,5 +8,4 @@ entry:
 	%A1 = alloca i32*
 	store i32** %A1, i32*** @G2	; G2->G1->G0 , G1->A1_HEAP
 	ret i32 0
-
 }
