@@ -27,6 +27,8 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	IsnPnode = false;
 	Defined = true;
 	AddrTaken = true;
+	ArgIds = NULL;
+	StaticData = NULL;
 	Extra = NULL;
 #ifdef ENABLE_OPT_1
 	SingleCopy = false;
@@ -42,6 +44,8 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 	Defined = true;
 	AddrTaken = isa<LoadInst>(inst) | isa<StoreInst>(inst)  | isa<CallInst>(inst) | 
 		    isa<ReturnInst>(inst) | isa<InvokeInst>(inst);
+	ArgIds = NULL;
+	StaticData = NULL;
 	Extra = NULL;
 #ifdef ENABLE_OPT_1
 	SingleCopy = isa<GetElementPtrInst>(inst) | isa<CastInst>(inst);
@@ -51,6 +55,13 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 }
 
 SEGNode::~SEGNode() {
+	if(ArgIds!=NULL)
+		delete ArgIds;
+	if(StaticData!=NULL)
+		delete StaticData;
+	if(Extra!=NULL)
+		delete Extra;
+
 	LeakDetector::removeGarbageObject(this);
 }
 

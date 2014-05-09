@@ -445,8 +445,8 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	sn->setArgIds(ArgIds);
 	// if this function is not a pointer, statically compute it
 	if (!cd->isPtr) {
-		std::vector<const Function*> *targets = new std::vector<const Function*>();
-		targets->push_back(fun);
+		std::vector<const Function*> targets;
+		targets.push_back(fun);
 		cd->targets = targets;
 	}
 	// statically compute argset for filtering purposes
@@ -466,10 +466,10 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-call"
 // return a vector of Function* representing where a function points
-std::vector<const Function*> *
+std::vector<const Function*> 
 FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funId, bdd funName, Type *funType)
 {
-	std::vector<const Function*> *targets = new std::vector<const Function*>();
+	std::vector<const Function*> targets;
 	std::map<unsigned int,const Function *>::iterator fmit;
 	bdd fpts;
 	// if function is defined and doesn't point everywhere, compute it's points-to set
@@ -497,7 +497,7 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 			if (targetType == funType) {
 				DEBUG(dbgs() << "TARGET ADDED\n");
 				// add target function to targest list
-				targets->push_back(target);
+				targets.push_back(target);
 				// add target function to caller map with this node as it's caller
 				DEBUG(dbgs() << "ATTEMPTING TO ADD CALLER\n");
 				addCaller(funNode,target);
@@ -562,7 +562,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	// declare some variables we need
 	std::vector<const Function*>::iterator target;
-	std::vector<const Function*> *targets;
+	std::vector<const Function*> targets;
 	CallData *cd;
 	bdd filter;
 	// setup some data we need
@@ -582,12 +582,12 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 		// TODO: if it's declaration, return value points everywhere, propagate both
 		// can use function to get more information like whether pass by reference
 		// or return by reference. check llvm doc for more detail.
-		if (cd->targets->at(0)->isDeclaration()) return 0;
+		if (cd->targets.at(0)->isDeclaration()) return 0;
 		targets = cd->targets;
 	}
 	DEBUG(dbgs() << "ENUMERATE TARGETS\n");
 	// process all computed targets
-	for (target = targets->begin(); target != targets->end(); ++target)
+	for (target = targets.begin(); target != targets.end(); ++target)
 		processTarget(tpts,sn,filter,*target);
 	// set outset to inset - filter, then propagate
 	sn->setOutSet(sn->getInSet() - filter);

@@ -262,6 +262,7 @@ void SEG::applyTransformation(){
 }
 
 SEG::~SEG() {
+	delete EntryNode;
 	LeakDetector::removeGarbageObject(this);
 }
 
