@@ -46,8 +46,16 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 
 void FlowSensitiveAliasAnalysis::clean(){
 	for(std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi){
-		free(mi->second);
+		SEG* seg = mi->second;
+		delete seg;
 	}
+	for(std::map<const Function*, StmtList*>::iterator vi=StmtWorkList.begin(), ve=StmtWorkList.end(); vi!=ve; ++vi){
+		delete vi->second;
+	}
+	for(std::map<unsigned int,std::string*>::iterator mi=Int2Str->begin(), me=Int2Str->end(); me!=mi; ++mi){
+		delete mi->second;
+	}
+	delete Int2Str;
 }
 
 #undef  DEBUG_TYPE

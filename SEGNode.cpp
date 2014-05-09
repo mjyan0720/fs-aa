@@ -51,7 +51,13 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 }
 
 SEGNode::~SEGNode() {
-	LeakDetector::removeGarbageObject(this);
+/*	if(ArgIds!=NULL)
+		delete ArgIds;
+	if(StaticData!=NULL)
+		delete StaticData;
+	if(Extra!=NULL)
+		delete Extra;
+*/	LeakDetector::removeGarbageObject(this);
 }
 
 void SEGNode::addPredecessor(SEGNode *pred) {

@@ -4,6 +4,7 @@
 #include "llvm/IR/Instruction.h"
 #include "SEGNode.h"
 #include "bdd.h"
+#include "llvm/Support/LeakDetector.h"
 
 namespace llvm {
 	class SEGNode;
@@ -23,6 +24,9 @@ struct CallData : public ExtraData {
 		std::vector<const llvm::Function*> *targets;  // the possible targets of this call
 		CallData() {
 			targets = NULL;
+		}
+		~CallData() {
+			delete targets;
 		}
 };
 
@@ -54,6 +58,9 @@ struct RetData {
 			callStatus = UNDEF_SAVE;
 			saveName   = fdd_ithset(0);
 		}
+	}
+	~RetData() {
+		llvm::LeakDetector::removeGarbageObject(this);
 	}
 };
 
