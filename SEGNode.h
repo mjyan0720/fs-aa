@@ -98,6 +98,8 @@ private:
 public:
 	SEGNode() {
 		Defined = true;
+		StaticData = NULL;
+		ArgIds = NULL;
 		Extra = NULL;
 #ifdef ENABLE_OPT_1
 		SingleCopy=false;
