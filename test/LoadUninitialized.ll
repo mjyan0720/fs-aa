@@ -1,26 +1,29 @@
 ; goal of test
 ; for uninitialized load, it should points to everywhere
+; and the effect should be propagatable
 
 
 @A = global i32 7
+@B = global i32 9
 
 define void @main() {
-	%A1 = load i32* @A
-	%A2 = add i32 %A1, %A1
-	%A3 = inttoptr i32 %A2 to i32*
-	%A4 = load i32* %A3
+	%A0 = alloca i32*
+	%A1 = call i32*(i32**)* @func2(i32** %A0)	; A0 hasn't been initialized
+							; A1 -> everywhere
+	store i32* @B, i32** %A0			; A0 is initialized
+	
+	%A3 = call i32*(i32**)* @func2(i32** %A0)	; A3 ->B_VALUE, A3?->A_VALUE
 	unreachable
 }
 
 
-define i32 @func1() {
-	
-
-
+define i32* @func2(i32** %A1){
+	%A2 = load i32** %A1	; A2 load uninitialized
+				; A2 points to everywhere
+	store i32* @A, i32** %A1
+	ret i32* %A2
 }
 
 ; Expected Output
-; A       -> A_VALUE
-; main    -> main_FUNCTION
-; main_A1 -> A1_HEAP
-; main_A4 -> EVERYTHING
+; main_A1 -> everything
+; main_A3 -> B_VALUE
