@@ -368,6 +368,8 @@ bool FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
 	bdd uninitializedLoads = bdd_not(initializedLoads) & loadNames;
 	// print debugging information
 	dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads);
+	// break if uninitialized loads if empty
+	if (bdd_unsat(uninitializedLoads)) return false;
 	// make uninitialized loads point everywhere
 	TopLevelPTS |= uninitializedLoads & fdd_ithvar(1,0);
 	// add uninitloads back to the worklist
