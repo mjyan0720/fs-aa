@@ -11,7 +11,6 @@ define void @main() {
 	%A1 = call i32*(i32**)* @func2(i32** %A0)	; A0 hasn't been initialized
 							; A1 -> everywhere
 	store i32* @B, i32** %A0			; A0 is initialized
-	
 	%A3 = call i32*(i32**)* @func2(i32** %A0)	; A3 ->B_VALUE, A3?->A_VALUE
 	unreachable
 }
