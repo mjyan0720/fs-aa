@@ -15,8 +15,8 @@ define i32* @call1(i32 **%C1) {
 }
 
 ; Expected Output:
-; G -> EVERYTHING               - because of initializer, is this the behavior we want?
+; G -> G_VALUE               - because of initializer, is this the behavior we want?
 ; call1_C1 -> start_S1__HEAP    -
-; call1_C2 -> EVERYTHING
+; call1_C2 -> G_VALUE
 ; start_S1 -> start_S1__HEAP
-; start_S2 -> EVERYTHING
+; start_S2 -> G_VALUE 
