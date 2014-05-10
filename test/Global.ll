@@ -22,9 +22,9 @@ define i32 @main() {
 
 
 ; expected result
-; main_E --> D
-; main_D --> C
-; main_C --> B
-; main_B --> A
+; main_E --> E_VALUE
+; main_D --> D_VALUE
+; main_C --> C_VALUE
+; main_B --> B_VALUE
 ; main_A --> A_VALUE
 ; main_ret --> EVERYTHING
