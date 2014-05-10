@@ -43,7 +43,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// do algorithm while loads are uninitialized
 	do {
 		if (rnd >= 2) {
-			dbgs() << "UNINIT LOADS:\n"; printBDD(LocationCount,Int2Str,badLoads);
+			dbgs() << "BAD LOADS:\n"; printBDD(LocationCount,Int2Str,badLoads);
 			assert(false && "LOADS NOT INITIALIZED");
 		}
 		doAnalysis(M,rnd++);
