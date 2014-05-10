@@ -1,7 +1,5 @@
 ; goal of test
-; for uninitialized load, it should points to everywhere
-; and the effect should be propagatable
-
+; test one function calls the same function multiple times
 
 @A = global i32 7
 @B = global i32 9

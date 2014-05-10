@@ -1,7 +1,5 @@
 ; goal of test
-; for uninitialized load, it should points to everywhere
-; and the effect should be propagatable
-
+; test recursive function call 
 
 @A = global i32 7
 @B = global i32 9
@@ -20,7 +18,8 @@ define i32* @func2(i32** %A1){
 	%A2 = load i32** %A1	; A2 load uninitialized
 				; A2 points to everywhere
 	store i32* @A, i32** %A1
-	ret i32* %A2
+	%A3 = call i32*(i32**)* @func2(i32** %A1)
+	ret i32* %A3
 }
 
 ; Expected Output
