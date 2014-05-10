@@ -112,8 +112,8 @@ void FlowSensitiveAliasAnalysis::addCaller(SEGNode *callInst, const Function *ca
 		Func2Calls.insert(std::pair<const Function*,CallerEntry*>(callee,new CallerEntry()));
 	}
 	// add callInst to callee's internal map, insert RetData for this call
-	DEBUG(dbgs() << "CALL FROM " << caller->getName() << " TO " << callee->getName() << "\n");
-	Func2Calls.at(callee)->Calls.insert(std::pair<const Function*,RetData*>(caller,new RetData(&Value2Int,callInst)));
+	DEBUG(dbgs() << "CALL FROM " << caller->getName() << " TO " << callee->getName() << " NODE " << *callInst << "\n");
+	Func2Calls.at(callee)->Calls.push_back(new RetData(&Value2Int,callInst));
 }
 
 // build caller map used in return processing
@@ -362,7 +362,7 @@ bool FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
 	bdd initializedLoads = bdd_exist(TopLevelPTS & loadNames,fdd_ithset(1));
 	bdd uninitializedLoads = bdd_not(initializedLoads) & loadNames;
 	// print debugging information
-	DEBUG(dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads););
+	dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads);
 	// make uninitialized loads point everywhere
 	TopLevelPTS |= uninitializedLoads & fdd_ithvar(1,0);
 	// add uninitloads back to the worklist

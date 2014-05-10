@@ -18,10 +18,10 @@
 #include "fdd.h"
 #include "SEG.h"
 #include "BDDMisc.h"
-//#include "Extra.h"
 #include <set>
 #include <map>
 #include <list>
+#include <vector>
 #include <algorithm>
 
 using namespace llvm;
@@ -29,10 +29,10 @@ using namespace llvm;
 typedef std::vector<SEGNode*> NodeVec;
 typedef std::list<SEGNode*> StmtList;
 struct CallerEntry {
-	std::map<const Function*,RetData*> Calls;
+	std::vector<RetData*> Calls;
 	~CallerEntry() {
-		for(std::map<const Function*, RetData*>::iterator mi=Calls.begin(), me=Calls.end(); mi!=me; ++mi){
-			delete mi->second;
+		for(std::vector<RetData*>::iterator mi=Calls.begin(), me=Calls.end(); mi!=me; ++mi){
+			delete *mi;
 		}
 	}
 };
