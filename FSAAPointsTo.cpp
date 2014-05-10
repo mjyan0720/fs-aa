@@ -604,8 +604,8 @@ int FlowSensitiveAliasAnalysis::preprocessRet(SEGNode *sn) {
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-ret"
 int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
-	std::map<const Function*,RetData*>::iterator cit;
-	std::map<const Function*,RetData*> *Calls;
+	std::vector<RetData*>::iterator cit;
+	std::vector<RetData*> *Calls;
 	bdd retpts;
 	// move in to out
 	sn->setOutSet(sn->getInSet());
@@ -626,7 +626,7 @@ int FlowSensitiveAliasAnalysis::processRet(bdd *tpts, SEGNode *sn) {
 	Calls = &Func2Calls.at(sn->getParent()->getFunction())->Calls;
 	for (cit = Calls->begin(); cit != Calls->end(); ++cit) {
 		bool changed = false;
-		RetData *rd = cit->second;
+		RetData *rd = *cit;
 		SEGNode *callInst = rd->callInst;
 		const Function *caller = callInst->getParent()->getFunction();
 		DEBUG(dbgs() << "RET: Call " << *callInst << " from " << caller->getName() << "\n");
