@@ -1,24 +1,22 @@
 ; naive test for call and return
 
-@A = global i32 10
+@G = global i32 10
 
 define i32 @start() {
-	%A3 = alloca i32*
-	store i32* @A, i32** %A3
-	%A5 = call i32* @call1(i32** %A3) ; test one argument
-	; call i32* @call1(i32** %A3) ; test one argument
+	%S1 = alloca i32*
+	store i32* @G, i32** %S1
+	%S2 = call i32* @call1(i32** %S1) ; test one argument
 	ret i32 0
 }
 
-define i32* @call1(i32 **%A1) {
-	%A2 = load i32** %A1
-	ret i32* %A2
+define i32* @call1(i32 **%C1) {
+	%C2 = load i32** %C1
+	ret i32* %C2
 }
 
 ; Expected Output:
-; A -> A__VALUE
-; call1_A1 -> call1_A1__ARGUMENT
-; call1_A1 -> start_A3__HEAP
-; call1_A2 -> A__VALUE
-; start_A3 -> start_A3__HEAP
-; start_A5 -> A__VALUE
+; G -> EVERYTHING               - because of initializer, is this the behavior we want?
+; call1_C1 -> start_S1__HEAP    -
+; call1_C2 -> EVERYTHING
+; start_S1 -> start_S1__HEAP
+; start_S2 -> EVERYTHING
