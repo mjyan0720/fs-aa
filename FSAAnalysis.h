@@ -255,8 +255,7 @@ public:
 	bool propagateAddrTaken(llvm::SEGNode *sn);
 
 	// Process global variables
-	void preprocessGlobal(unsigned int id, bdd *tpts);
-	void processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g);
+	bdd processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g);
 	void initializeGlobals(Module &M);
 
 	// Process undef values

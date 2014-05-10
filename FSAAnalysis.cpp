@@ -308,7 +308,7 @@ const Value *unwindConstant(const Constant *c) {
 }
 
 // make complex globals point everywhere
-void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
+bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, GlobalVariable *g) {
 	bdd gpts, gvalpts;
 	gpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
 	gvalpts = bdd_false();
@@ -320,20 +320,34 @@ void FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Globa
 	}
 	// update the tpts with the new global information
 	*tpts |= gpts | gvalpts;
+	// return our gvalpts so we can update addrtaken information
+	return gvalpts;
 }
 
 void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
+	bdd globalAddrTaken = bdd_false();
 	// preprocess all global variables
 	for (Module::global_iterator mi=M.global_begin(), me=M.global_end(); mi!=me; ++mi) {
 		// add them to toplevel points-to set
 		GlobalVariable *v = &*mi;
 		assert(Value2Int.find(v)!=Value2Int.end() && "global is not assigned an ID");
-		// add global to top level pointsto set
-		processGlobal(Value2Int.at(v),&TopLevelPTS,v);
-		bdd name = fdd_ithvar(0,Value2Int.at(v));
-		// todo: propagate addrtaken names into insets
+		// add global to top level pointsto set and initialized values to addrtaken set
+		unsigned int id = Value2Int.at(v);
+		globalAddrTaken |= processGlobal(id,&TopLevelPTS,v);
 		// if they are constants, add to constant names
-		if (v->isConstant()) constantNames |= name;
+		if (v->isConstant()) constantNames |= fdd_ithvar(0,id);
+	}
+	// propagate global pts to each function's entry node
+	bdd GlobalPTS = TopLevelPTS & globalValueNames;
+	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
+		// get SEG entry node
+		if (mi->second->isDeclaration()) continue;
+		SEGNode *entry = mi->second->getEntryNode();
+		// setup entry node inset and outset
+		entry->setInSet(globalAddrTaken);
+		entry->setOutSet(globalAddrTaken);
+		// propagate global data
+		propagateAddrTaken(entry);
 	}
 }
 
