@@ -16,6 +16,8 @@ STATISTIC(Functions,   "Functions: The # of functions in the module");
 STATISTIC(UninitLoads, "Uninit Loads: The # of uninitialized loads in the module");
 STATISTIC(LoadAgain,   "Nodes Forced By Load: The # of nodes processed again due to uninitialized loads");
 
+bdd badLoads;
+
 using namespace llvm;
 
 #undef  DEBUG_TYPE
@@ -40,7 +42,10 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {
-		assert(rnd < 2 && "LOADS NOT INITIALIZED");
+		if (rnd >= 2) {
+			dbgs() << "UNINIT LOADS:\n"; printBDD(LocationCount,Int2Str,badLoads);
+			assert(false && "LOADS NOT INITIALIZED");
+		}
 		doAnalysis(M,rnd++);
 	} while (handleUninitializedLoads());
 	// print ouf final points-to set
@@ -384,6 +389,7 @@ bool FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
 		}
 	}
 	// return true if we need to do more processing
+	badLoads = uninitializedLoads;
 	return changed;
 }
 
