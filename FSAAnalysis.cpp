@@ -294,16 +294,15 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 
 // recurse through nested constants to find an underlying value
 const Value *unwindConstant(const Constant *c) {
-	Instruction *i;
+	const ConstantExpr *expr;
 	// handle constant expr case
 	if (isa<ConstantExpr>(c)) {
-		i = cast<ConstantExpr>(const_cast<Constant*>(c))->getAsInstruction();
+		expr = cast<ConstantExpr>(c);
 		// if this instruction is a cast, recurse on it's first operand
-		if (i->isCast())
-			unwindConstant(cast<Constant>(i->getOperand(0)));
-		// if it is a GEP, get it's pointer
-		else if (isa<GetElementPtrInst>(i))
-			unwindConstant(cast<Constant>(cast<GetElementPtrInst>(i)->getPointerOperand()));
+		if (expr->isCast() || expr->getOpcode()==Instruction::GetElementPtr){
+			dbgs()<<"unwind global\t"<<*expr<<"\n";
+			unwindConstant(cast<Constant>(expr->getOperand(0)));
+		}
 	// handle function or global variable case case
 	} else if (isa<Function>(c) || isa<GlobalVariable>(c)) {
 		return c;
@@ -318,20 +317,15 @@ bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Global
 	gpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
 	gvalpts = bdd_false();
 	// if this guy has an initializer, attempt to get it's underlying value
-	// --ymj we only deal with pointer global varialbe initialization
-	if (g->hasInitializer() && g->getInitializer()->getType()->isPointerTy()){
-		dbgs()<<"pointer global:\t"<<*g<<"\n";
-		gvalpts = fdd_ithvar(0,id+1) & fdd_ithvar(1,0);
-	}
-	*tpts |= gpts | gvalpts;
-/*	if (g->hasInitializer()) {
+	if (g->hasInitializer()) {
 		const Value *v = unwindConstant(g->getInitializer());
+		v->dump();
 		if (Value2Int.count(v))
 			gvalpts = fdd_ithvar(0,id+1) & bdd_restrict(*tpts,fdd_ithvar(0,Value2Int.at(v)));
 	}
 	// update the tpts with the new global information
 	*tpts |= gpts | gvalpts;
-*/	// return our gvalpts so we can update addrtaken information
+	// return our gvalpts so we can update addrtaken information
 	return gvalpts;
 }
 
