@@ -28,6 +28,11 @@ using namespace llvm;
 #define DEBUG_TYPE "fsaa-preprocess"
 bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	int rnd = 0;
+	// set stats to be zero initially
+	UninitLoads = 0;
+	LoadAgain = 0;
+	TopLevelSize = 0;
+	TopLevelPointerCount = 0;
 	// build SEG
 	constructSEG(M);
 	// initialize value maps
@@ -50,10 +55,6 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	loadNames = bdd_false();
 	constantNames = bdd_false();
 	topLevelPointers = bdd_false();
-	UninitLoads = 0;
-	LoadAgain = 0;
-	TopLevelSize = 0;
-	TopLevelPointerCount = 0;
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {
