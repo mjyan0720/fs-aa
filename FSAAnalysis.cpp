@@ -48,6 +48,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	loadNames = bdd_false();
 	constantNames = bdd_false();
 	UninitLoads = 0;
+	LoadAgain = 0;
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {
@@ -86,10 +87,12 @@ void FlowSensitiveAliasAnalysis::clean(){
 	for(std::map<const Function*, StmtList*>::iterator vi=StmtWorkList.begin(), ve=StmtWorkList.end(); vi!=ve; ++vi){
 		delete vi->second;
 	}
+#ifdef REVMAP 
 	for(std::map<unsigned int,std::string*>::iterator mi=Int2Str->begin(), me=Int2Str->end(); me!=mi; ++mi){
 		delete mi->second;
 	}
 	delete Int2Str;
+#endif
 	for(CallerMap::iterator mi=Func2Calls.begin(), me=Func2Calls.end(); me!=mi; ++mi){
 		delete mi->second;
 	}
@@ -175,6 +178,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(v, id++) );
 		// each global variable is a pointer, assign another id for what it points to
 		id++;
+		TopLevelSize ++;
 		assert(chk.second && "Value Id should be unique");
 	}
 	/// map functions
@@ -190,6 +194,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(a, id++) );
 			// give the location the argument points to an anonymous id
 			id++;
+			TopLevelSize ++;
 			assert(chk.second && "Value Id should be unique");
 		}
 	}
@@ -224,6 +229,7 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			}
 #endif
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
+			TopLevelSize ++;
 			assert(chk.second && "Value Id should be unique");
 			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst)) id++;
