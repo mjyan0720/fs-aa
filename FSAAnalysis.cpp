@@ -17,6 +17,7 @@ STATISTIC(UninitLoads, "Uninit Loads: The # of uninitialized loads in the module
 STATISTIC(LoadAgain,   "Nodes Forced By Load: The # of nodes processed again due to uninitialized loads");
 STATISTIC(PointsEverywhere, "Nodes That Point Everywhere");
 STATISTIC(TopLevelSize, "Nodes in Top Level Points-To Set");
+STATISTIC(TopLevelPointerCount, "Nodes in Top Level Points-To Set");
 
 bdd badLoads;
 bdd topLevelPointers;
@@ -51,6 +52,8 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	topLevelPointers = bdd_false();
 	UninitLoads = 0;
 	LoadAgain = 0;
+	TopLevelSize = 0;
+	TopLevelPointerCount = 0;
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {
@@ -317,7 +320,10 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 		// add argument to static data
 		StaticData->push_back(arg);
 		// if this is a pointer, add it to the top level pointer set
-		if ((*ai).getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,argid);
+		if ((*ai).getType()->isPointerTy()) {
+			topLevelPointers |= fdd_ithvar(0,argid);
+			TopLevelPointerCount++;
+		}
 	}
 	// set argids and static data for node
 	entry->setArgIds(ArgIds);
@@ -374,7 +380,10 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 		// if they are constants, add to constant names
 		if (v->isConstant()) constantNames |= fdd_ithvar(0,id);
 		// if this is a pointer, add it to the top level pointer set
-		if (v->getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,id);
+		if (v->getType()->isPointerTy()) {
+			topLevelPointers |= fdd_ithvar(0,id);
+			TopLevelPointerCount++;
+		}
 	}
 	// propagate global pts to each function's entry node
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
@@ -447,7 +456,10 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 				unsigned int id = Value2Int[sn->getInstruction()];
 				sn->setId(id);
 				// if this is a pointer, add it to the top level pointer set
-				if (sn->getInstruction()->getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,id);
+				if (sn->getInstruction()->getType()->isPointerTy()) {
+					topLevelPointers |= fdd_ithvar(0,id);
+					TopLevelPointerCount++;
+				}
 			}
 			// perform preprocessing on SEGNode
 			if (isa<AllocaInst>(i)) {
