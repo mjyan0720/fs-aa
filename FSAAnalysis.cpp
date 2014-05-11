@@ -318,14 +318,20 @@ bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Global
 	gpts = fdd_ithvar(0,id) & fdd_ithvar(1,id+1);
 	gvalpts = bdd_false();
 	// if this guy has an initializer, attempt to get it's underlying value
-	if (g->hasInitializer()) {
+	// --ymj we only deal with pointer global varialbe initialization
+	if (g->hasInitializer() && g->getInitializer()->getType()->isPointerTy()){
+		dbgs()<<"pointer global:\t"<<*g<<"\n";
+		gvalpts = fdd_ithvar(0,id+1) & fdd_ithvar(1,0);
+	}
+	*tpts |= gpts | gvalpts;
+/*	if (g->hasInitializer()) {
 		const Value *v = unwindConstant(g->getInitializer());
 		if (Value2Int.count(v))
 			gvalpts = fdd_ithvar(0,id+1) & bdd_restrict(*tpts,fdd_ithvar(0,Value2Int.at(v)));
 	}
 	// update the tpts with the new global information
 	*tpts |= gpts | gvalpts;
-	// return our gvalpts so we can update addrtaken information
+*/	// return our gvalpts so we can update addrtaken information
 	return gvalpts;
 }
 
