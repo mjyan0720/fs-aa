@@ -354,7 +354,6 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 	} else {
 		DEBUG(dbgs() << "STORE TO: " << *(Int2Str->at(sn->getArgIds()->at(0))) << "\n");
 	}
-	return 0;
 	// return modified outkpts
 	sn->setOutSet(outkpts | (topx & topy));
 	propagateAddrTaken(sn);
