@@ -26,9 +26,12 @@ define i32 @main() {
 
 
 ; expected result
-; main_E --> E_VALUE
-; main_D --> D_VALUE
-; main_C --> C_VALUE
-; main_B --> B_VALUE
-; main_A --> A_VALUE
-; main_ret --> EVERYTHING
+;main_C -> B__VALUE
+;main_B -> EVERYTHING
+;main_A -> EVERYTHING
+;main_Q -> P__VALUE
+;main_P -> N__VALUE
+;main_N -> M__VALUE
+;main_M -> EVERYTHING
+
+

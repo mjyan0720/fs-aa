@@ -295,19 +295,21 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 // recurse through nested constants to find an underlying value
 const Value *unwindConstant(const Constant *c) {
 	const ConstantExpr *expr;
+	dbgs()<<"unwind global:\t"<<*c<<"\n";
 	// handle constant expr case
+	if (isa<Function>(c) || isa<GlobalVariable>(c)) {
+		return c;
+	}
+
 	if (isa<ConstantExpr>(c)) {
 		expr = cast<ConstantExpr>(c);
 		// if this instruction is a cast, recurse on it's first operand
 		if (expr->isCast() || expr->getOpcode()==Instruction::GetElementPtr){
-			dbgs()<<"unwind global\t"<<*expr<<"\n";
-			unwindConstant(cast<Constant>(expr->getOperand(0)));
+			dbgs()<<"operand 0: "<<*(expr->getOperand(0))<<"\n";
+			return unwindConstant(cast<Constant>(expr->getOperand(0)));
 		}
 	// handle function or global variable case case
-	} else if (isa<Function>(c) || isa<GlobalVariable>(c)) {
-		return c;
-	}
-	// we don't know how to handle this instruction; exit
+	} 	// we don't know how to handle this instruction; exit
 	return NULL;
 }
 
@@ -319,7 +321,7 @@ bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Global
 	// if this guy has an initializer, attempt to get it's underlying value
 	if (g->hasInitializer()) {
 		const Value *v = unwindConstant(g->getInitializer());
-		v->dump();
+		dbgs()<<"result of unwind"<<*v<<"\n";
 		if (Value2Int.count(v))
 			gvalpts = fdd_ithvar(0,id+1) & bdd_restrict(*tpts,fdd_ithvar(0,Value2Int.at(v)));
 	}
