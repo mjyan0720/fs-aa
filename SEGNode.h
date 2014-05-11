@@ -100,12 +100,16 @@ private:
 	bool LoadDefined;
 
 public:
+
+	bool StoreUndefined;
+
 	SEGNode() {
 		Defined = true;
 		StaticData = NULL;
 		ArgIds = NULL;
 		Extra = NULL;
 		LoadDefined = true;
+		StoreUndefined = false;
 #ifdef ENABLE_OPT_1
 		SingleCopy=false;
 		Source=NULL;

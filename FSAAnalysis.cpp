@@ -17,7 +17,6 @@ STATISTIC(UninitLoads, "Uninit Loads: The # of uninitialized loads in the module
 STATISTIC(LoadAgain,   "Nodes Forced By Load: The # of nodes processed again due to uninitialized loads");
 STATISTIC(PointsEverywhere, "Nodes That Point Everywhere");
 STATISTIC(TopLevelSize, "Nodes in Top Level Points-To Set");
-STATISTIC(everythingAliases, "Does everything alias?");
 
 bdd badLoads;
 
@@ -73,11 +72,6 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 
 // print out imprecision by checking who points everywhere
 void FlowSensitiveAliasAnalysis::checkImprecision() {
-	// if everything aliases, return
-	if (everythingAliases) {
-		PointsEverywhere = 0;
-		return;
-	}
 	// otherwise, count how many top level variables point everywhere
 	for (unsigned int i = 0; i < LocationCount; i++)
 		if (bdd_sat(TopLevelPTS & fdd_ithvar(0,i) & fdd_ithvar(1,0)))
@@ -541,12 +535,6 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 					break;
 				default: assert(false && "Out of bounds Instr Type");
 			}
-			// if ret is non-zero, stop
-			if (ret) {
-				everythingAliases = 1;
-				dbgs() << "EVERYTHING ALIASES\n";
-				return;
-			}
 			// print out sets
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-addrtaken"
@@ -554,7 +542,6 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
-	everythingAliases = 0;
 }
 
 /// Register this pass

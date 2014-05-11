@@ -10,9 +10,12 @@
 #include "bdd.h"
 #include "fdd.h"
 #include "FSAAnalysis.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Instructions.h"
 
 #define ENABLE_UNDEFSTORE
+
+STATISTIC(UndefStore,"Number of undef stores");
 
 /*
  * TODO: over the course of evaluation, we may discover that a node
@@ -334,6 +337,11 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 		bddy = sn->getStaticData()->at(1);
 		topy = bdd_restrict(*tpts,bddy);
 	} else topy = sn->getStaticData()->at(1);
+	// count if this is an undefined store on any argument
+	if (bdd_sat(fdd_ithvar(0,0) & topx) || bdd_sat(fdd_ithvar(1,0) & topy)) {
+		if (!sn->StoreUndefined) UndefStore++;
+		sn->StoreUndefined = true;
+	}
 	// if storing to unique memory location, strong update
 	if (sn->getArgIds()->at(0) && bdd_satcount(bddx & *tpts & bdd_not(fdd_ithvar(1,0))) == 1.0)
 		outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);

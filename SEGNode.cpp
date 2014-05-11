@@ -31,6 +31,7 @@ SEGNode::SEGNode(SEG *parent) : Inst(NULL), Parent(parent) {
 	StaticData = NULL;
 	Extra = NULL;
 	LoadDefined = true;
+	StoreUndefined = false;
 #ifdef ENABLE_OPT_1
 	SingleCopy = false;
 	Source = NULL;
@@ -49,6 +50,7 @@ SEGNode::SEGNode(const Instruction * inst, SEG *parent) : Inst(inst), Parent(par
 	StaticData = NULL;
 	Extra = NULL;
 	LoadDefined = true;
+	StoreUndefined = false;
 #ifdef ENABLE_OPT_1
 	SingleCopy = isa<GetElementPtrInst>(inst) | isa<CastInst>(inst);
 	Source = NULL;
