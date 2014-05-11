@@ -22,6 +22,8 @@ STATISTIC(TopLevelPointerCount, "Nodes in Top Level Points-To Set");
 bdd badLoads;
 bdd topLevelPointers;
 
+#define REVMAP
+
 using namespace llvm;
 
 #undef  DEBUG_TYPE

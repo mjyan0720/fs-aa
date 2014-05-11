@@ -411,18 +411,20 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 	// check if this function is a pointer and if it is defined
 	cd->isPtr = (fun == NULL);
 	DEBUG(dbgs() << "CALL INST: " << *funv << "\n");
-	cd->isDefinedFunc = fun != NULL && Value2Int.count(funv) != 0;
+	cd->isDefinedFunc = Value2Int.count(funv) != 0;
 	// if function called is defined, store it's name
 	if (cd->isDefinedFunc) {
-		DEBUG(dbgs() << "CALL DEFINED\n");
 		cd->funcId = Value2Int.at(funv);
 		cd->funcName = fdd_ithvar(0,cd->funcId);
+		if (cd->isPtr) DEBUG(dbgs() << "CALL DEFINED PTR\n");
+		else           DEBUG(dbgs() << "CALL DEFINED FUN\n");
 	// otherwise, store every possible function it could point to
 	} else {
-		DEBUG(dbgs() << "CALL UNDEFINED\n");
 		cd->funcId = 0;
 		cd->funcName = matchingFunctions(funv);
 		sn->setDefined(false);
+		if (cd->isPtr) DEBUG(dbgs() << "CALL UNDEFINED PTR\n");
+		else           DEBUG(dbgs() << "CALL UNDEFINED FUN\n");
 	}
 	// iterate through instruction arguments, set argids, generate static data for arguments
 	for (unsigned int i = 0; i < argnum; i++) {
@@ -458,7 +460,7 @@ int FlowSensitiveAliasAnalysis::preprocessCall(SEGNode *sn) {
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "fsaa-call"
 // return a vector of Function* representing where a function points
-std::vector<const Function*> 
+std::vector<const Function*>
 FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funId, bdd funName, Type *funType)
 {
 	std::vector<const Function*> targets;
@@ -467,7 +469,7 @@ FlowSensitiveAliasAnalysis::computeTargets(bdd *tpts, SEGNode* funNode, int funI
 	// if function is defined and doesn't point everywhere, compute it's points-to set
 	if (funId && !pointsTo(*tpts,funId,0)) {
 		DEBUG(dbgs() << "FUN IS DEFINED!\n");
-		fpts = bdd_restrict(*tpts,funName);
+		fpts = *tpts & funName;
 	}
 	// otherwise, it can point everywhere
 	else {
@@ -558,13 +560,16 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	CallData *cd;
 	bdd filter;
 	// setup some data we need
-	// filter = genFilterSet(sn->getInSet(),globalValueNames,cd->argset);
 	filter = sn->getInSet();
 	cd = static_cast<CallData*>(sn->getExtraData());
-	// debugging calls
-	// DEBUG(dbgs() << "BDD FILTER:\n");
-	// DEBUG(printBDD(POINTSTO_MAX,filter));
 	DEBUG(dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n");
+	// if func is undefined but not a pointer, just return points to everything
+	if (cd->isPtr && cd->isDefinedFunc) {
+		DEBUG(dbgs() << "UNDEFINED FUNC AND NOT PTR\n";);
+		sn->setOutSet(bdd_true());
+		propagateAddrTaken(sn);
+		return 0;
+	}
 	// if func is pointer, dynamically compute its targets
 	if (cd->isPtr)
 		targets = computeTargets(tpts,sn,cd->funcId,cd->funcName,cd->funcType);
