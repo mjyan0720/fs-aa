@@ -19,6 +19,7 @@ STATISTIC(PointsEverywhere, "Nodes That Point Everywhere");
 STATISTIC(TopLevelSize, "Nodes in Top Level Points-To Set");
 
 bdd badLoads;
+bdd topLevelPointers;
 
 using namespace llvm;
 
@@ -47,6 +48,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	TopLevelPTS = bdd_false();
 	loadNames = bdd_false();
 	constantNames = bdd_false();
+	topLevelPointers = bdd_false();
 	UninitLoads = 0;
 	LoadAgain = 0;
 	setupAnalysis(M);
@@ -75,7 +77,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 void FlowSensitiveAliasAnalysis::checkImprecision() {
 	// otherwise, count how many top level variables point everywhere
 	for (unsigned int i = 0; i < LocationCount; i++)
-		if (bdd_sat(TopLevelPTS & fdd_ithvar(0,i) & fdd_ithvar(1,0)))
+		if (bdd_sat(TopLevelPTS & topLevelPointers & fdd_ithvar(0,i) & fdd_ithvar(1,0)))
 				PointsEverywhere++;
 }
 
@@ -87,7 +89,7 @@ void FlowSensitiveAliasAnalysis::clean(){
 	for(std::map<const Function*, StmtList*>::iterator vi=StmtWorkList.begin(), ve=StmtWorkList.end(); vi!=ve; ++vi){
 		delete vi->second;
 	}
-#ifdef REVMAP 
+#ifdef REVMAP
 	for(std::map<unsigned int,std::string*>::iterator mi=Int2Str->begin(), me=Int2Str->end(); me!=mi; ++mi){
 		delete mi->second;
 	}
@@ -177,9 +179,11 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		const GlobalVariable *v = &*mi;
 		chk = Value2Int.insert( std::pair<const Value*, unsigned>(v, id++) );
 		// each global variable is a pointer, assign another id for what it points to
-		id++;
-		TopLevelSize ++;
 		assert(chk.second && "Value Id should be unique");
+		// increment id again for global value
+		id++;
+		// increment size of top level variables
+		TopLevelSize ++;
 	}
 	/// map functions
 	for(Module::iterator mi=M.begin(), me=M.end(); mi!=me; ++mi) {
@@ -192,10 +196,11 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 		for(Function::const_arg_iterator ai=f->arg_begin(), ae=f->arg_end(); ai!=ae; ++ai) {
 			const Argument *a = &*ai;
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(a, id++) );
+			assert(chk.second && "value id should be unique");
 			// give the location the argument points to an anonymous id
 			id++;
+			// increment size of top level variables
 			TopLevelSize ++;
-			assert(chk.second && "Value Id should be unique");
 		}
 	}
 	/// map local statements
@@ -229,8 +234,9 @@ unsigned FlowSensitiveAliasAnalysis::initializeValueMap(Module &M){
 			}
 #endif
 			chk = Value2Int.insert( std::pair<const Value*, unsigned>(inst, id++) );
-			TopLevelSize ++;
 			assert(chk.second && "Value Id should be unique");
+			// increment size of top level variables
+			TopLevelSize ++;
 			// give the allocated location an anonymous id
 			if(isa<AllocaInst>(inst)) id++;
 		}
@@ -310,6 +316,8 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 		TopLevelPTS = TopLevelPTS | (arg & fdd_ithvar(1,argid+1));
 		// add argument to static data
 		StaticData->push_back(arg);
+		// if this is a pointer, add it to the top level pointer set
+		if ((*ai).getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,argid);
 	}
 	// set argids and static data for node
 	entry->setArgIds(ArgIds);
@@ -365,6 +373,8 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 		globalAddrTaken |= processGlobal(id,&TopLevelPTS,v);
 		// if they are constants, add to constant names
 		if (v->isConstant()) constantNames |= fdd_ithvar(0,id);
+		// if this is a pointer, add it to the top level pointer set
+		if (v->getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,id);
 	}
 	// propagate global pts to each function's entry node
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
@@ -436,6 +446,8 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			if (Value2Int.find(sn->getInstruction())!=Value2Int.end()) {
 				unsigned int id = Value2Int[sn->getInstruction()];
 				sn->setId(id);
+				// if this is a pointer, add it to the top level pointer set
+				if (sn->getInstruction()->getType()->isPointerTy()) topLevelPointers |= fdd_ithvar(0,id);
 			}
 			// perform preprocessing on SEGNode
 			if (isa<AllocaInst>(i)) {
