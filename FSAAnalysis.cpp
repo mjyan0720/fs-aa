@@ -43,7 +43,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// do algorithm while loads are uninitialized
 	do {
 		if (rnd >= 2) {
-			dbgs() << "BAD LOADS:\n"; printBDD(LocationCount,Int2Str,badLoads);
+			DEBUG(dbgs() << "BAD LOADS:\n"; printBDD(LocationCount,Int2Str,badLoads));
 			assert(false && "LOADS NOT INITIALIZED");
 		}
 		doAnalysis(M,rnd++);
@@ -295,21 +295,20 @@ void FlowSensitiveAliasAnalysis::preprocessFunction(const Function *f) {
 // recurse through nested constants to find an underlying value
 const Value *unwindConstant(const Constant *c) {
 	const ConstantExpr *expr;
-	dbgs()<<"unwind global:\t"<<*c<<"\n";
-	// handle constant expr case
+	DEBUG(dbgs()<<"unwind global: "<<*c<<"\n");
+	// handle function or global variable case case
 	if (isa<Function>(c) || isa<GlobalVariable>(c)) {
 		return c;
 	}
-
+	// handle constant expr case
 	if (isa<ConstantExpr>(c)) {
 		expr = cast<ConstantExpr>(c);
 		// if this instruction is a cast, recurse on it's first operand
 		if (expr->isCast() || expr->getOpcode()==Instruction::GetElementPtr){
-			dbgs()<<"operand 0: "<<*(expr->getOperand(0))<<"\n";
 			return unwindConstant(cast<Constant>(expr->getOperand(0)));
 		}
-	// handle function or global variable case case
-	} 	// we don't know how to handle this instruction; exit
+	}
+	// we don't know how to handle this instruction; exit
 	return NULL;
 }
 
@@ -321,7 +320,6 @@ bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Global
 	// if this guy has an initializer, attempt to get it's underlying value
 	if (g->hasInitializer()) {
 		const Value *v = unwindConstant(g->getInitializer());
-		dbgs()<<"result of unwind"<<*v<<"\n";
 		if (Value2Int.count(v))
 			gvalpts = fdd_ithvar(0,id+1) & bdd_restrict(*tpts,fdd_ithvar(0,Value2Int.at(v)));
 	}
@@ -369,7 +367,7 @@ bool FlowSensitiveAliasAnalysis::handleUninitializedLoads() {
 	bdd initializedLoads = bdd_exist(TopLevelPTS & loadNames,fdd_ithset(1));
 	bdd uninitializedLoads = bdd_not(initializedLoads) & loadNames;
 	// print debugging information
-	dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads);
+	DEBUG(dbgs() << "UNINIT LOADS\n"; printBDD(LocationCount,Int2Str,uninitializedLoads));
 	// break if uninitialized loads if empty
 	if (bdd_unsat(uninitializedLoads)) return false;
 	// make uninitialized loads point everywhere
