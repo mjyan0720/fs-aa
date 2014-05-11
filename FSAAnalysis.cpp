@@ -15,6 +15,9 @@
 STATISTIC(Functions,   "Functions: The # of functions in the module");
 STATISTIC(UninitLoads, "Uninit Loads: The # of uninitialized loads in the module");
 STATISTIC(LoadAgain,   "Nodes Forced By Load: The # of nodes processed again due to uninitialized loads");
+STATISTIC(PointsEverywhere, "Nodes That Point Everywhere");
+STATISTIC(TopLevelSize, "Nodes in Top Level Points-To Set");
+STATISTIC(everythingAliases, "Does everything alias?");
 
 bdd badLoads;
 
@@ -33,12 +36,18 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	// build caller map
 	initializeCallerMap(&getAnalysis<CallGraph>());
 	DEBUG(printValueMap());
+#ifdef REVMAP
 	Int2Str = reverseMap(&Value2Int);
+#else
+	Int2Str = NULL;
+#endif
 	DEBUG(printReverseMap(Int2Str));
 	// initialize worklists
 	initializeFuncWorkList(M);
 	// setup algorithm
 	TopLevelPTS = bdd_false();
+	loadNames = bdd_false();
+	constantNames = bdd_false();
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {
@@ -54,10 +63,24 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	DEBUG(dbgs()<<"\nFINAL:\n"; printBDD(LocationCount,Int2Str,TopLevelPTS));
 	DEBUG(std::cout<<std::endl);
 	dbgs()<<"Analysis Done\n";
+	checkImprecision();
 	// cleanup whatever memory we can
 	clean();
 	// return false
 	return false;
+}
+
+// print out imprecision by checking who points everywhere
+void FlowSensitiveAliasAnalysis::checkImprecision() {
+	// if everything aliases, return
+	if (everythingAliases) {
+		PointsEverywhere = 0;
+		return;
+	}
+	// otherwise, count how many top level variables point everywhere
+	for (unsigned int i = 0; i < LocationCount; i++)
+		if (bdd_sat(TopLevelPTS & fdd_ithvar(0,i) & fdd_ithvar(1,0)))
+				PointsEverywhere++;
 }
 
 void FlowSensitiveAliasAnalysis::clean(){
@@ -324,7 +347,7 @@ bdd FlowSensitiveAliasAnalysis::processGlobal(unsigned int id, bdd *tpts, Global
 			gvalpts = fdd_ithvar(0,id+1) & bdd_restrict(*tpts,fdd_ithvar(0,Value2Int.at(v)));
 	}
 	// update the tpts with the new global information
-	*tpts |= gpts | gvalpts;
+	*tpts |= gpts;
 	// return our gvalpts so we can update addrtaken information
 	return gvalpts;
 }
@@ -343,7 +366,6 @@ void FlowSensitiveAliasAnalysis::initializeGlobals(Module &M) {
 		if (v->isConstant()) constantNames |= fdd_ithvar(0,id);
 	}
 	// propagate global pts to each function's entry node
-	bdd GlobalPTS = TopLevelPTS & globalValueNames;
 	for (std::map<const Function*, SEG*>::iterator mi=Func2SEG.begin(), me=Func2SEG.end(); mi!=me; ++mi) {
 		// get SEG entry node
 		if (mi->second->isDeclaration()) continue;
@@ -410,8 +432,10 @@ void FlowSensitiveAliasAnalysis::setupAnalysis(Module &M) {
 			SEGNode *sn = &*sni;
 			const Instruction *i = sn->getInstruction();
 			// set SEGNode id if exists in Value Map
-			if (Value2Int.find(sn->getInstruction())!=Value2Int.end())
-				sn->setId(Value2Int[sn->getInstruction()]);
+			if (Value2Int.find(sn->getInstruction())!=Value2Int.end()) {
+				unsigned int id = Value2Int[sn->getInstruction()];
+				sn->setId(id);
+			}
 			// perform preprocessing on SEGNode
 			if (isa<AllocaInst>(i)) {
 				preprocessAlloc(sn);
@@ -518,6 +542,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 			}
 			// if ret is non-zero, stop
 			if (ret) {
+				everythingAliases = 1;
 				dbgs() << "EVERYTHING ALIASES\n";
 				return;
 			}
@@ -528,6 +553,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 			DEBUG(dbgs()<<"NODE OUTSET:\n"; printBDD(LocationCount,Int2Str,sn->getOutSet()));
 		}
 	}
+	everythingAliases = 0;
 }
 
 /// Register this pass

@@ -74,17 +74,14 @@ private:
 	/// top level points to graph
 	bdd TopLevelPTS;
 
-	/// global values name set
-	bdd globalValueNames;
-
 	/// names of load instructions (at the end, unitialized loads point to everything)
 	bdd loadNames;
 
-	/// set of SEGNodes for load empty load instructions
-	std::set<SEGNode*> undefLoadNodes;
-
 	/// names of constant values
 	bdd constantNames;
+
+	/// set of SEGNodes for load empty load instructions
+	std::set<SEGNode*> undefLoadNodes;
 
 	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<AliasAnalysis>();
@@ -131,7 +128,11 @@ private:
 	/// add Int2Func mapping, build default points-to set for arguments
 	void preprocessFunction(const Function *f);
 
+	/// clean up memory after we finish
 	void clean();
+
+	/// check imprecision of our tests
+	void checkImprecision();
 
 public:
 	static char ID;
