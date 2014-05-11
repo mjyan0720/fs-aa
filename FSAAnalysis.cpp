@@ -48,6 +48,7 @@ bool FlowSensitiveAliasAnalysis::runOnModule(Module &M){
 	TopLevelPTS = bdd_false();
 	loadNames = bdd_false();
 	constantNames = bdd_false();
+	UninitLoads = 0;
 	setupAnalysis(M);
 	// do algorithm while loads are uninitialized
 	do {

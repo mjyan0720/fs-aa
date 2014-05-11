@@ -339,21 +339,18 @@ int FlowSensitiveAliasAnalysis::processStore(bdd *tpts, SEGNode *sn) {
 		outkpts = bdd_apply(sn->getInSet(),topx,bddop_diff);
 	// else weak update
 	else outkpts = sn->getInSet();
-	// return modified outkpts
-	sn->setOutSet(outkpts | (topx & topy));
-	propagateAddrTaken(sn);
-	// if we are storing everywhere
-	if (bdd_sat(fdd_ithvar(0,0) & topx)) {
+	// if we are storing everywhere, make everything point to 0
+	if (bdd_sat(fdd_ithvar(0,0) & topx) && bdd_sat(fdd_ithvar(1,0) & topy)) {
 		DEBUG(dbgs() << "STORE: UNDEF LOCATION\n");
-#ifdef ENABLE_UNDEFSTORE
-		// return 1 if we are storing everything, everywhere
-		if (bdd_sat(fdd_ithvar(1,0) & topy)) return 1;
-		// update toplevel
-		*tpts = *tpts | topy;
-#endif
+		outkpts |= bdd_true();
 	} else {
 		DEBUG(dbgs() << "STORE TO: " << *(Int2Str->at(sn->getArgIds()->at(0))) << "\n");
 	}
+	return 0;
+	// return modified outkpts
+	sn->setOutSet(outkpts | (topx & topy));
+	propagateAddrTaken(sn);
+	// return, since we don't have everything aliases anymore
 	return 0;
 }
 
