@@ -366,6 +366,7 @@ struct RetData {
 			assert(saveName != bdd_false());
 		// otherwise, it is undefined
 		} else {
+			assert(false && "SAVE SHOULD ALWAYS BE DEFINED\n");
 			DEBUG(llvm::dbgs() << "RETDATA: UNDEF SAVE " << i->getName() << "\n");
 			callStatus = UNDEF_SAVE;
 			saveName   = fdd_ithset(0);

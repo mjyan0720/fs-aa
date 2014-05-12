@@ -564,11 +564,19 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	filter = sn->getInSet();
 	cd = static_cast<CallData*>(sn->getExtraData());
 	DEBUG(dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n");
-	// if func is undefined but not a pointer, just return points to everything
+	// if func is undefined but not a pointer
 	if (cd->isPtr && !cd->isDefinedFunc) {
 		DEBUG(dbgs() << "UNDEFINED FUNC AND NOT PTR\n";);
+		// it's outset has everything -> everything
 		sn->setOutSet(bdd_true());
 		propagateAddrTaken(sn);
+		const Instruction *i = sn->getInstruction();
+		// it's return value points everywhere
+		// if we don't return void, make return points everywhere
+		if (!i->getType()->isVoidTy()) {
+			unsigned int id = Value2Int.at(i);
+			*tpts |= fdd_ithvar(0,id);
+		}
 		return 0;
 	}
 	// if func is pointer, dynamically compute its targets
