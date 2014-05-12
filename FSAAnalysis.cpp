@@ -504,7 +504,7 @@ void FlowSensitiveAliasAnalysis::doAnalysis(Module &M, int round) {
 	while(!FuncWorkList.empty()){
 		const Function *f = FuncWorkList.front();
 		FuncWorkList.pop_front();
-		StmtList *stmtList = StmtWorkList.find(f)->second;
+		StmtList *stmtList = StmtWorkList.at(f);
 		// iterate through each node in the worklist
 		while (!stmtList->empty()) {
 			// mark nodes processed in later rounds

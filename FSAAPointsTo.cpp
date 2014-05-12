@@ -105,6 +105,7 @@ bool FlowSensitiveAliasAnalysis::propagateTopLevel(bdd *oldtpts, bdd *newpart, b
 			if (appendIfAbsent<SEGNode*>(wkl,*i)) {
 				changed = true;
 				DEBUG(dbgs() << "TOPLEVEL: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n");
+				appendIfAbsent<const Function*>(&FuncWorkList,f);
 			}
 	}
 #undef  DEBUG_TYPE
@@ -139,6 +140,7 @@ bool FlowSensitiveAliasAnalysis::propagateAddrTaken(SEGNode *sn) {
 			if (appendIfAbsent<SEGNode*>(wkl,succ)) {
 				changed = true;
 				DEBUG(dbgs() << "ADDRTAKEN: APPENDED " << **i << " TO " << f->getName() << "'S WORKLIST\n");
+				appendIfAbsent<const Function*>(&FuncWorkList,f);
 			}
 			succ->setInSet(newink);
 		}
@@ -549,8 +551,7 @@ void FlowSensitiveAliasAnalysis::processTarget(bdd *tpts, SEGNode *callNode, bdd
 	entry->setInSet(entry->getInSet() | filter);
 	entry->setOutSet(entry->getInSet());
 	// propagate using address taken on entry node
-	if (propagateAddrTaken(entry))
-			appendIfAbsent<const Function*>(&FuncWorkList,target);
+	propagateAddrTaken(entry);
 }
 
 int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
@@ -564,7 +565,7 @@ int FlowSensitiveAliasAnalysis::processCall(bdd *tpts, SEGNode *sn) {
 	cd = static_cast<CallData*>(sn->getExtraData());
 	DEBUG(dbgs() << "FUNTYPE: " << *(cd->funcType) << "\n");
 	// if func is undefined but not a pointer, just return points to everything
-	if (cd->isPtr && cd->isDefinedFunc) {
+	if (cd->isPtr && !cd->isDefinedFunc) {
 		DEBUG(dbgs() << "UNDEFINED FUNC AND NOT PTR\n";);
 		sn->setOutSet(bdd_true());
 		propagateAddrTaken(sn);
