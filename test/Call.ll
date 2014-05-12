@@ -38,6 +38,8 @@ define i32 @call3(i32 **%A1, i32 *%A2) {
 ; Expected Result
 ; A --> A_Value
 ; start_A1 --> start_A1_HEAP
+; start_A3 --> EVERYTHING
+; start_A7 --> EVERYTHING
 ; call1_A1 --> call1_A1_HEAP
 ; start_A2 --> call1_A1_HEAP
 ; call2_A1 --> start_A1_HEAP

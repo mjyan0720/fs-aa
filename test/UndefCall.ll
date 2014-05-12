@@ -38,4 +38,4 @@ define i32* @call3() {
 ; main_val -> A__VALUE
 ; main_val -> B__VALUE
 ; main_val -> C__VALUE
-; main_ret -> EVERYTHING 
+; main_ret -> EVERYTHING

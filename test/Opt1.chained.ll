@@ -48,4 +48,3 @@ end:
 ;main_A4 -> S__VALUE
 ;main_A4 -> main_A1__HEAP
 ;main_A10 -> M__VALUE
-;main_A10 -> T__VALUE??

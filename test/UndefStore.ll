@@ -9,36 +9,20 @@
 
 define void @main() {
 	%A1 = inttoptr i32 15 to i32**	; A1 is points to everywhere
+	%A2 = alloca i32*
 	store i32* @A, i32** %A1	; Everywhere should points to A__VALUE
-	
+	call i32()* @func2()
+	%A3 = load i32** %A2
 	unreachable
 }
 
-
-define void @func1(){
-	%A1 = alloca i32*
-	%A2 = load i32** %A1	; A1 & A1_HEAP --> A__VALUE
-				; A2 --> A__VALUE
-	unreachable
-}
-
-define void @func2(){
+define i32 @func2(){
 	%A1 = inttoptr i32 20 to i32**
 	store i32* @B, i32** %A1	; everywhere points to B__VALUE
 					; this triggers reprocessing all other functions
-	unreachable
+	ret i32 0
 }
 
 
 ;Expected Output
-; A -> A_VALUE
-; B -> B_VALUE
-; main_A1 -> A_VALUE
-; main_A1 -> B_VALUE
-; func1_A1 -> func1_A1__HEAP
-; func1_A1 -> A_VALUE
-; func1_A1 -> B_VALUE
-; func1_A2 -> A_VALUE
-; func1_A2 -> B_VALUE
-; func2_A1 -> A_VALUE
-; func2_A1 -> B_VALUE
+; main_A3 -> A_VALUE, B_VALUE 

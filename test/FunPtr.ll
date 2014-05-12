@@ -17,21 +17,27 @@ target triple = "x86_64-pc-linux-gnu"
 define i32 @main() {
 	%A1 = alloca i32*                              ; alloca
 
-	%A2 = alloca %funptr	                      ; gen function pointer
-	%A3 = getelementptr %funptr* %A2, i32 0, i32 0 
+	%A2 = alloca %funptr	                         ; gen function pointer
+	%A3 = getelementptr %funptr* %A2, i32 0, i32 0
+	switch i32 3, label %l1 [i32 0, label %l2
+														i32 1, label %l3
+														i32 2, label %l4]
 	br i1 1, label %l1, label %l2
 l1:
 	store i32 (i32**)* @func1, i32 (i32**)** %A3
-	br label %l3
+	br label %l5
 l2:
 	store i32 (i32**)* @func2, i32 (i32**)** %A3
-	br label %l3
+	br label %l5
 l3:
 	%A4 = getelementptr %funptr* %A2, i32 0, i32 2
 	store i8 (i32**)* @func3, i8 (i32**)** %A4
+	br label %l5
+l4:
 	%A5 = getelementptr %funptr* %A2, i32 0, i32 1
 	store i32 (i8**)* @func4, i32 (i8**)** %A5
-
+	br label %l5
+l5:
 	%A6 = getelementptr %funptr* %A2, i32 0, i32 0	; Now A2 contains all function pointers
 	%A8 = load i32 (i32**)** %A6
 
@@ -63,5 +69,6 @@ define i32 @func4(i8 **%A1) {
 
 ; expected Result
 ; Only need to check A10
+; A8 -> func4_FUNCTION, func3_FUNCTION, func2_FUNCTION, func1_FUNCTION
 ; A10 --> A_VALUE
 ; A10 --> B_VALUE
